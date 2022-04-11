@@ -16,7 +16,7 @@ from sim_queue import (obj_buffer, que_staz_dos,
 from datetime import datetime
 start = datetime.now()
 
-#  pippo
+
 #  capienza di cassoni stazione e buffer
 upperbound_s = 4
 upperbound_b = 10
