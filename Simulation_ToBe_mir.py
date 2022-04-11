@@ -1,6 +1,6 @@
 import module_class_cono
 import module_stats
-import module_que_by_est
+import Solver_sequencing
 
 import math
 import pandas as pd
@@ -146,51 +146,29 @@ class Dosaggio(sim.Component):
         return()
 
     def setup(self, staz_call):
-        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
+        global stato, obj_coni
         t = env.now()
 
         self.staz_call = staz_call
 
-        df_coda = module_que_by_est.func_calc_que(
-            stato.estrusori,
-            stato.dict_TER, t,
-            stato.df_OP)
+        dos_con = Solver_sequencing.best_choice(t, stato)
+        extruder = dos_con[0]
+        container = dos_con[1]
 
-        cono_found = False
-        idx_que = 0
+        df_e = stato.df_OP[stato.df_OP['estrusore'] == extruder]
+        df_e.sort_values(['data', 'ordine', 'statino'], inplace=True)
+        best_dosaggio = df_e.iloc[0, :]
+        self.parameters(best_dosaggio)
+        stato.df_OP.loc[[self.ID], 'stato'] = 'C'
+        print('Setting up ', env.now(), self.estrusore)
 
-        while not cono_found:
-            best_dosaggio = df_coda.iloc[idx_que, :]
-
-            self.parameters(best_dosaggio)
-            print('Setting up ', env.now(), self.estrusore)
-
-            for cono in obj_coni:
-                if cono.estrusore == self.estrusore and cono.stato == 'D':
-                    cono_found = True
-                    self.cono = cono
-                    cono.stato = 'A'
-                    cono.estrusore = self.estrusore
-                    cono.color = self.color
-                    cono.valcrom = self.valcrom
-                    break
-
-            if not cono_found:
-                for cono in obj_coni:
-                    if (cono.valcrom <= self.valcrom
-                        and cono.color <= self.color
-                            and cono.stato == 'D'):
-                        cono_found = True
-                        self.cono = cono
-                        cono.stato = 'A'
-                        cono.estrusore = self.estrusore
-                        cono.color = self.color
-                        cono.valcrom = self.valcrom
-                        break
-
-            if not cono_found:
-                idx_que += 1
-                print('Cono non trovato, skip to', idx_que)
+        for c in obj_coni:
+            if c.rfid == container:
+                self.cono = c
+        self.cono.stato = 'A'
+        self.cono.estrusore = self.estrusore
+        self.cono.color = self.color
+        self.cono.valcrom = self.valcrom
 
     def process(self):
         global stato
@@ -228,7 +206,7 @@ class Dosaggio(sim.Component):
 
         if self.estrusore not in ['E5', 'E9']:
             while handlingest.claimers().length() != 0:
-                yield self.hold(1)
+                yield self.hold(0.1)
         self.release()
         self.fine_miscelazione = env.now()
         print('miscelato ', env.now(),
@@ -434,7 +412,8 @@ class Mission500_coni(sim.Component):
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(db_mir500_coni_pul.sample())
+            #  yield self.hold(db_mir500_coni_pul.sample())
+            yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
@@ -600,7 +579,8 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
-                yield self.hold(db_pulizia.sample())
+                #  yield self.hold(db_pulizia.sample())
+                yield self.hold(0)
                 self.fine_pulizia = env.now()
                 cono.color = 0
                 cono.valcrom = 0
@@ -623,12 +603,9 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 150  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission500_coni = 0
-
-# TEMPORANEI
-error = 0
 
 env = sim.Environment()
 
@@ -664,7 +641,6 @@ pulizia_generator = PuliziaGenerator()
 stazione_pulizia = sim.Resource('Stazione di pulizia coni')
 
 env.run(till=(60 * h_sim))
-print('ERRORI RIORDINO LC', error)
 # -------------------------------------------
 
 # verifica correttezza estrusori
@@ -705,4 +681,5 @@ tot_ques = len(handlingest.claimers()
                + handlingest.requesters()
                + miscelatore.requesters())
 
+a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
