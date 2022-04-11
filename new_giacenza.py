@@ -52,4 +52,9 @@ dict_giacenza = dict.fromkeys(codes)
 df_giacenza = pd.DataFrame.from_dict(dict_giacenza, orient='index',
                                      columns=['posizione'])
 
-df_giacenza['posizione'] = 'M'
+df_giacenza.drop(index=df_giacenza.index[0],
+                 axis=0,
+                 inplace=True)
+
+df_giacenza['posizione'] = range(0, len(df_giacenza))
+df_giacenza['qta'] = 500
