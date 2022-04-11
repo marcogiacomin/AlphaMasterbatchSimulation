@@ -1,4 +1,4 @@
-from pulp import *
+import pulp as lp
 import pandas as pd
 import numpy as np
 from class_stato import stato
@@ -79,18 +79,18 @@ for e in df_dos.index:
         if (df_dos.loc[e, codice] != ''
             and df_dos.loc[e, codice] != ' '
                 and df_dos.loc[e, codice] is not None):
-            mix[e][df_dos.loc[e, codice]] = [df_dos.loc[e, peso]]
+            mix[e][df_dos.loc[e, codice]] = df_dos.loc[e, peso]
         else:
             break
 
 # Create the 'prob' variable to contain the problem data
-prob = LpProblem("The complete sequencing Problem", LpMinimize)
+prob = lp.LpProblem("The complete sequencing Problem", lp.LpMinimize)
 #  ---------------------
 
 # A dictionary is created to contain the referenced Variables
-arcs = [(d, c) for c in containers for d in dosaggi]
-variables = LpVariable.dicts(
-    "Couples", (dosaggi, containers), 0, None, LpInteger)
+arcs = [(d, c) for c in containers for d in df_dos['estrusore']]
+variables = lp.LpVariable.dicts(
+    "Couples", (df_dos['estrusore'], containers), 0, None, lp.LpInteger)
 #  ------------------
 
 #  Define lists with values for objective function
@@ -109,35 +109,35 @@ objective = time_obj + color_obj + time_pick_obj
 #  --------------------
 
 # The objective function is added to 'prob' first
-prob += (lpSum(objective),
+prob += (lp.lpSum(objective),
          "Total delta color/time/picking ",
          )
 #  ------------------
 # The constraints are added to 'prob'
-prob += lpSum([variables[d][c]
-              for d in dosaggi for c in containers]) == 1, "PercentagesSum"
+prob += lp.lpSum([variables[d][c]
+                  for d in df_dos['estrusore'] for c in containers]) == 1, "PercentagesSum"
 
 i = 0
-for d in dosaggi:
+for d in df_dos['estrusore']:
     for c in containers:
         i += 1
         prob += (variables[d][c] >= 0,
                  str(i),
                  )
 
-for d in dosaggi:
+for d in df_dos['estrusore']:
     for c in containers:
         prob += (variables[d][c] * colors_d[d] >= variables[d][c] * colors_c[c],
                  "Vincolo di colore{}".format(str(d + c)),
                  )
 
-for d in dosaggi:
+for d in df_dos['estrusore']:
     for c in containers:
         prob += (variables[d][c] * valcroms_d[d] >= variables[d][c] * valcroms_c[c],
                  "Vincolo di valcrom{}".format(str(d + c)),
                  )
 
-for d in dosaggi:
+for d in df_dos['estrusore']:
     for c in containers:
         for m in mix[d]:
             prob += (variables[d][c] * mix[d][m] <= variables[d][c] * mp_qta[m],
@@ -153,6 +153,4 @@ for v in prob.variables():
     if v.varValue == 1:
         dos = v.name[8:10]
         con = v.name[11:]
-#  ------------------------
-#  ------------------------
 #  ------------------------
