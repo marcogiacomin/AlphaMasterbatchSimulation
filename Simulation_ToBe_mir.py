@@ -347,6 +347,7 @@ class Staz_auto(sim.Component):
                 break
         return()
 
+#  qui devo inserire il discorso della pesata random
     def weigh_and_pull(self):
         global stato, dict_picking
         t = 0

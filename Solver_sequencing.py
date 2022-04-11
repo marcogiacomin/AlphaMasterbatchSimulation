@@ -4,44 +4,37 @@ import numpy as np
 from class_stato import stato
 
 
+def dos_list(df, estrusori):
+    df_solver = pd.DataFrame()
+    df_OP = df.sort_values(['estrusore', 'data', 'ordine']).copy()
+    # riempie il dizionario con il primo cono in stato ORDINATO
+    for est in estrusori:
+        mask = (df_OP['estrusore'] == est) & (
+            df_OP['stato'] == 'O')
+        df_tmp = df_OP[mask]
+        if len(df_tmp) > 0:
+            df_solver = pd.concat(
+                [df_solver, pd.DataFrame([df_tmp.iloc[0, ]])], axis=0)
+    df_solver.index = [df_solver['estrusore']]
+    return(df_solver)
+
+
 #  Creates a list of container
 containers = list(stato.df_coni.index)
 
 #  Creates a list of dosaggi
 dosaggi = ['D' + str(n) for n in range(1, 9)]
 
+df_dos = dos_list(stato.df_OP, stato.estrusori)
+
 #  Dictionary of the dosaggi's color
-colors_d = {'D1': 40,
-            'D2': 33,
-            'D3': 15,
-            'D4': 90,
-            'D5': 65,
-            'D6': 73,
-            'D7': 35,
-            'D8': 1,
-            'D9': 0}
+colors_d = pd.Series.to_dict(stato.df_dos['color'])
 
 #  Dictionary of the dosaggi's valcrom
-valcroms_d = {'D1': 50,
-              'D2': 93,
-              'D3': 5,
-              'D4': 0,
-              'D5': 5,
-              'D6': 13,
-              'D7': 39,
-              'D8': 1,
-              'D9': 80}
+valcroms_d = pd.Series.to_dict(stato.df_dos['valcrom'])
 
-#  Dictionary of the dosaggi's time
-time_d = {'D1': 50,
-          'D2': 13,
-          'D3': 5,
-          'D4': 20,
-          'D5': 15,
-          'D6': 13,
-          'D7': 19,
-          'D8': 10,
-          'D9': 28}
+#  Dictionary of the dosaggi's time of weighing
+time_d = pd.Series.to_dict(stato.df_dos['TD'])
 
 #  Dictionary of the container's color
 colors_c = pd.Series.to_dict(stato.df_coni['color'])
@@ -58,8 +51,7 @@ tcr = {'D1': 150, 'D2': 2, 'D3': 80, 'D4': 0,
        'D5': 105, 'D6': 10, 'D7': 300, 'D8': 1, 'D9': 400}
 
 #  Dictionary of mp with time to pick
-mp_time = {'A': 10, 'B': 100, 'C': 20, 'D': 0, 'E': 0, 'F': 10,
-           'G': 80, 'H': 2000, 'I': 0, 'L': 0, 'M': 50, 'N': 78, 'O': 30}
+mp_time = pd.Series.to_dict(stato.df_giacenza['time_pick'])
 
 #  Dictionary of mp quantity in stock
 mp_qta = pd.Series.to_dict(stato.df_giacenza['qta'])
@@ -144,4 +136,6 @@ for v in prob.variables():
     if v.varValue == 1:
         dos = v.name[8:10]
         con = v.name[11:]
+#  ------------------------
+#  ------------------------
 #  ------------------------
