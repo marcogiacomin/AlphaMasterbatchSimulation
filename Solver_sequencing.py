@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from class_stato import stato
 
+t_now = 0
+
 
 def dos_list(df, estrusori):
     df_solver = pd.DataFrame()
@@ -15,26 +17,24 @@ def dos_list(df, estrusori):
         if len(df_tmp) > 0:
             df_solver = pd.concat(
                 [df_solver, pd.DataFrame([df_tmp.iloc[0, ]])], axis=0)
-    df_solver.index = [df_solver['estrusore']]
+    df_solver.index = df_solver['estrusore']
     return(df_solver)
 
 
 #  Creates a list of container
 containers = list(stato.df_coni.index)
 
-#  Creates a list of dosaggi
-dosaggi = ['D' + str(n) for n in range(1, 9)]
-
+#  Creates a dataframe of dosaggi
 df_dos = dos_list(stato.df_OP, stato.estrusori)
 
 #  Dictionary of the dosaggi's color
-colors_d = pd.Series.to_dict(stato.df_dos['color'])
+colors_d = pd.Series.to_dict(df_dos['color'])
 
 #  Dictionary of the dosaggi's valcrom
-valcroms_d = pd.Series.to_dict(stato.df_dos['valcrom'])
+valcroms_d = pd.Series.to_dict(df_dos['valcrom'])
 
 #  Dictionary of the dosaggi's time of weighing
-time_d = pd.Series.to_dict(stato.df_dos['TD'])
+time_d = pd.Series.to_dict(df_dos['TD'])
 
 #  Dictionary of the container's color
 colors_c = pd.Series.to_dict(stato.df_coni['color'])
@@ -43,12 +43,25 @@ colors_c = pd.Series.to_dict(stato.df_coni['color'])
 valcroms_c = pd.Series.to_dict(stato.df_coni['color'])
 
 #  Dictionary of the TEr times for each extruder
-ter = {'D1': 15, 'D2': 200, 'D3': 0, 'D4': 0,
-       'D5': 95, 'D6': 20, 'D7': 30, 'D8': 17, 'D9': 0}
+ter = stato.dict_TER
+for k in ter:
+    ter[k] = ter[k] - t_now
 
 #  Dictionary of the TCr times for each extruder
-tcr = {'D1': 150, 'D2': 2, 'D3': 80, 'D4': 0,
-       'D5': 105, 'D6': 10, 'D7': 300, 'D8': 1, 'D9': 400}
+tcr = {}
+
+t_misc = 3
+t_safe = 3
+mask_common_que = ((stato.df_OP['stato'] == 'C')
+                   | (stato.df_OP['stato'] == 'D'))
+df_common_que = stato.df_OP[mask_common_que]
+common_que_time = np.sum(df_common_que['TD']) + t_misc + t_safe
+
+for e in stato.estrusori:
+    mask_est_que = stato.df_OP['stato'] == 'B'
+    df_est_que = stato.df_OP[mask_est_que]
+    est_que_time = np.sum(df_common_que['TE'])
+    tcr[e] = est_que_time + common_que_time
 
 #  Dictionary of mp with time to pick
 mp_time = pd.Series.to_dict(stato.df_giacenza['time_pick'])
@@ -57,14 +70,18 @@ mp_time = pd.Series.to_dict(stato.df_giacenza['time_pick'])
 mp_qta = pd.Series.to_dict(stato.df_giacenza['qta'])
 
 #  Dictionary of mix for each dosaggio
-mix = {'D1': {'A': 10, 'B': 100}, 'D2': {'C': 50, 'A': 100, 'D': 2000, 'E': 20},
-       'D3': {'F': 80, 'G': 500},
-       'D4': {'M': 400000000, 'N': 15, 'O': 30},
-       'D5': {'I': 50, 'L': 20, 'H': 20},
-       'D6': {'O': 10, 'A': 40, 'D': 80, 'E': 10},
-       'D7': {'F': 80, 'G': 100},
-       'D8': {'I': 84, 'C': 7400},
-       'D9': {'L': 200, 'I': 40, 'D': 10}}
+mix = {}
+for e in df_dos.index:
+    mix[e] = {}
+    for i in range(1, 16):
+        codice = 'cod.i' + str(i)
+        peso = 'kg.i' + str(i)
+        if (df_dos.loc[e, codice] != ''
+            and df_dos.loc[e, codice] != ' '
+                and df_dos.loc[e, codice] is not None):
+            mix[e][df_dos.loc[e, codice]] = [df_dos.loc[e, peso]]
+        else:
+            break
 
 # Create the 'prob' variable to contain the problem data
 prob = LpProblem("The complete sequencing Problem", LpMinimize)

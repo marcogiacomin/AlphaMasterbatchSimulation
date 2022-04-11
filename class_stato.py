@@ -128,5 +128,3 @@ class Stato():
 
 # creo l'oggetto stato
 stato = Stato(parameters, variables, data)
-
-a = pd.Series.to_dict(stato.df_giacenza['qta'])
