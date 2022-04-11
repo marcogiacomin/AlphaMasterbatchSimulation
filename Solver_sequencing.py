@@ -5,6 +5,10 @@ from class_stato import stato
 
 t_now = 0
 
+coeff_con = 0.25
+coeff_time = 0.5
+coeff_mir = 10 * 0.25
+
 
 def dos_list(df, estrusori):
     df_solver = pd.DataFrame()
@@ -22,7 +26,8 @@ def dos_list(df, estrusori):
 
 
 #  Creates a list of container
-containers = list(stato.df_coni.index)
+mask_disp = stato.df_coni['stato'] == 'D'
+containers = list(stato.df_coni[mask_disp].index)
 
 #  Creates a dataframe of dosaggi
 df_dos = dos_list(stato.df_OP, stato.estrusori)
@@ -37,10 +42,10 @@ valcroms_d = pd.Series.to_dict(df_dos['valcrom'])
 time_d = pd.Series.to_dict(df_dos['TD'])
 
 #  Dictionary of the container's color
-colors_c = pd.Series.to_dict(stato.df_coni['color'])
+colors_c = pd.Series.to_dict(stato.df_coni[mask_disp]['color'])
 
 #  Dictionary of the container's valcrom
-valcroms_c = pd.Series.to_dict(stato.df_coni['color'])
+valcroms_c = pd.Series.to_dict(stato.df_coni[mask_disp]['color'])
 
 #  Dictionary of the TEr times for each extruder
 ter = stato.dict_TER
@@ -50,18 +55,11 @@ for k in ter:
 #  Dictionary of the TCr times for each extruder
 tcr = {}
 
-t_misc = 3
-t_safe = 3
-mask_common_que = ((stato.df_OP['stato'] == 'C')
-                   | (stato.df_OP['stato'] == 'D'))
-df_common_que = stato.df_OP[mask_common_que]
-common_que_time = np.sum(df_common_que['TD']) + t_misc + t_safe
-
 for e in stato.estrusori:
     mask_est_que = stato.df_OP['stato'] == 'B'
     df_est_que = stato.df_OP[mask_est_que]
-    est_que_time = np.sum(df_common_que['TE'])
-    tcr[e] = est_que_time + common_que_time
+    est_que_time = np.sum(df_est_que['TE'])
+    tcr[e] = est_que_time
 
 #  Dictionary of mp with time to pick
 mp_time = pd.Series.to_dict(stato.df_giacenza['time_pick'])
@@ -96,14 +94,15 @@ variables = lp.LpVariable.dicts(
 #  Define lists with values for objective function
 color_obj = [((colors_d[d] - colors_c[c]) + (valcroms_d[d] -
               valcroms_c[c])) * variables[d][c] for (d, c) in arcs]
-color_obj = np.multiply(color_obj, 0.25)
+color_obj = np.multiply(color_obj, coeff_con)
 
-time_obj = [(ter[d] + tcr[d] - time_d[d]) * variables[d][c] for (d, c) in arcs]
-time_obj = np.multiply(time_obj, 0.5)
+time_obj = [(ter[d] + tcr[d] - time_d[d]) * variables[d][c]
+            for (d, c) in arcs]
+time_obj = np.multiply(time_obj, coeff_time)
 
 time_pick_obj = [(np.sum(mp_time[x] for x in mix[d]))
                  * variables[d][c] for (d, c) in arcs]
-time_pick_obj = np.multiply(time_obj, 0.25)
+time_pick_obj = np.multiply(time_obj, coeff_mir)
 
 objective = time_obj + color_obj + time_pick_obj
 #  --------------------
@@ -115,7 +114,7 @@ prob += (lp.lpSum(objective),
 #  ------------------
 # The constraints are added to 'prob'
 prob += lp.lpSum([variables[d][c]
-                  for d in df_dos['estrusore'] for c in containers]) == 1, "PercentagesSum"
+                  for d in df_dos['estrusore'] for c in containers]) == 1, "Single choice"
 
 i = 0
 for d in df_dos['estrusore']:
@@ -127,20 +126,23 @@ for d in df_dos['estrusore']:
 
 for d in df_dos['estrusore']:
     for c in containers:
-        prob += (variables[d][c] * colors_d[d] >= variables[d][c] * colors_c[c],
+        prob += ((variables[d][c] * colors_d[d] >= variables[d][c]
+                 * colors_c[c]),
                  "Vincolo di colore{}".format(str(d + c)),
                  )
 
 for d in df_dos['estrusore']:
     for c in containers:
-        prob += (variables[d][c] * valcroms_d[d] >= variables[d][c] * valcroms_c[c],
+        prob += ((variables[d][c] * valcroms_d[d] >= variables[d][c]
+                 * valcroms_c[c]),
                  "Vincolo di valcrom{}".format(str(d + c)),
                  )
 
 for d in df_dos['estrusore']:
     for c in containers:
         for m in mix[d]:
-            prob += (variables[d][c] * mix[d][m] <= variables[d][c] * mp_qta[m],
+            prob += ((variables[d][c] * mix[d][m] <= variables[d][c]
+                     * mp_qta[m]),
                      "Vincolo di quantità stock{}".format(str(d + c + m)),
                      )
 #  ---------------------
@@ -148,9 +150,12 @@ for d in df_dos['estrusore']:
 # The problem is solved using PuLP's choice of Solver
 prob.solve()
 
-# Each of the variables is printed with it's resolved optimum value
-for v in prob.variables():
-    if v.varValue == 1:
-        dos = v.name[8:10]
-        con = v.name[11:]
+if lp.LpStatus[prob.status] == 'Optimaal':
+    # Optimum arc is memorized in two variables
+    for v in prob.variables():
+        if v.varValue == 1:
+            dos = v.name[8:10]
+            con = v.name[11:]
+else:
+    print('Infeasible')
 #  ------------------------
