@@ -4,9 +4,9 @@ import numpy as np
 
 t_now = 0
 
-coeff_con = 0.2
-coeff_time = 0.7
-coeff_mir = 10 * 0.1
+coeff_con = 0.9
+coeff_time = 0.1
+coeff_mir = 10 * 0
 
 
 def dos_list(df, estrusori):
@@ -166,4 +166,5 @@ def best_choice(t_now, stato):
     else:
         print('Infeasible')
     #  ------------------------
+
     return(id_dos, con)

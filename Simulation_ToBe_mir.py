@@ -67,7 +67,7 @@ db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
                                   lowerbound=5, upperbound=15)
 
 d_mir500_mp_mag = sim.Normal(mean=3, standard_deviation=0.3)  # only go
-db_mir500_mp_mag = sim.Bounded(d_mir500_mp_mag, lowerbound=0, upperbound=6)
+db_mir500_mp_mag = sim.Bounded(d_mir500_mp_mag, lowerbound=0.5, upperbound=6)
 
 d_mir500_mp_buff = sim.Normal(mean=1, standard_deviation=0.1)  # only go
 db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
@@ -76,13 +76,16 @@ db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
 
 class DosaggioGenerator(sim.Component):
     def process(self):
+        go_to = 1
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
-                if random() < 0.5:
+                if go_to == 1:
                     s = stazione1
+                    go_to = 2
                 else:
                     s = stazione2
+                    go_to = 1
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
             else:
@@ -158,7 +161,8 @@ class Dosaggio(sim.Component):
         best_dosaggio = stato.df_OP.loc[id_dos, :]
         self.parameters(best_dosaggio)
         stato.df_OP.loc[[self.ID], 'stato'] = 'C'
-        print('Setting up ', env.now(), self.estrusore, self.ID)
+        print('Setting up {} '.format(self.staz_call.n),
+              env.now(), self.estrusore, self.ID)
 
         for c in obj_coni:
             if c.rfid == container:
@@ -188,7 +192,7 @@ class Dosaggio(sim.Component):
             yield self.passivate()
 
         self.enter(self.staz_call.que)
-        self.cono.posizione = 'DOS'
+        self.cono.posizione = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -196,23 +200,25 @@ class Dosaggio(sim.Component):
         #  ------------------
 
         #  ingresso nel miscelatore
+        self.cono.posizione = 'MISC_request'
         yield self.request(miscelatore)
         self.inizio_miscelazione = env.now()
         self.cono.posizione = 'MISC'
         stato.df_OP.loc[[self.ID], 'stato'] = 'M'
         yield self.hold(db_miscelatore.sample())
+        self.fine_miscelazione = env.now()
 
         if self.estrusore not in ['E5', 'E9']:
             while handlingest.claimers().length() != 0:
                 yield self.hold(0.1)
         self.release()
-        self.fine_miscelazione = env.now()
-        print('miscelato ', env.now(),
-              self.estrusore, self.cono.rfid)
+        '''print('miscelato ', env.now(),
+              self.estrusore, self.cono.rfid)'''
         #  --------------------
 
         #  ingresso handlingest e arrivo sul buffer se non Leistritz
         if self.estrusore not in ['E5', 'E9']:
+            self.cono.posizione = 'GUA_EST_request'
             yield self.request(handlingest)
             stato.df_OP.loc[[self.ID], 'stato'] = 'G'
             self.cono.posizione = 'GUA_EST'
@@ -223,11 +229,12 @@ class Dosaggio(sim.Component):
                 yield self.hold(1)
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.posizione = 'BUFF'
+            self.cono.posizione = 'BUFF ' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
             self.release()
             self.fine_handlingest = env.now()
         else:
+            self.cono.posizione = 'attesa sul mir'
             i = stato.estrusori.index(self.estrusore)
             #  qui deve chiamare il mir500 che prende il cono pieno
             #  lo carica e lo porta fino all'estrusore
@@ -235,10 +242,10 @@ class Dosaggio(sim.Component):
             #  in futuro valutare dove è meglio far fare la sosta
             #  in funzione dell'ottimizzazione di TC
             while len(obj_buffer[i]) >= 2:
-                yield self.hold(1)
+                yield self.hold(0.1)
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.posizione = 'BUFF'
+            self.cono.posizione = 'BUFF' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
         #  -------------------
 
@@ -269,10 +276,11 @@ class Stazione(sim.Component):
             if len(self.que) == 0:
                 yield self.passivate()
             self.dosaggio = self.que.pop()
+            self.dosaggio.cono.posizione = 'DOS ' + self.n
             self.dosaggio.inizio_dosatura = env.now()
             yield self.hold(db_pesatura.sample())
             self.dosaggio.fine_dosatura = env.now()
-            print('Dosato ', env.now(), str(
+            print('Dosato {} '.format(self.n), env.now(), str(
                 self.dosaggio.estrusore), self.dosaggio.cono.rfid)
 
             stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
@@ -281,7 +289,7 @@ class Stazione(sim.Component):
                                                         'staz.dosaggio')
             # attiva solo se la coda del miscelatore è vuota
             while miscelatore.claimers().length() >= 2:
-                yield self.hold(1)
+                yield self.hold(0.1)
             self.dosaggio.activate()
 
 
@@ -356,6 +364,7 @@ class Staz_auto(sim.Component):
                 while len(que_staz_dos) == 0:
                     yield self.passivate()
                 self.dosaggio = que_staz_dos.pop()
+                self.dosaggio.cono.posizione = 'DOS ' + self.n
                 #  crea la picking list
                 dict_picking = self.picking_list()
                 self.dosaggio.inizio_dosatura = env.now()
@@ -378,7 +387,7 @@ class Staz_auto(sim.Component):
                         yield self.hold(0.1)
                 #  --------------------
                 self.dosaggio.fine_dosatura = env.now()
-                print('Dosato ', env.now(), str(
+                print('Dosato {} '.format(self.n), env.now(), str(
                     self.dosaggio.estrusore), self.dosaggio.cono.rfid)
                 stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
                                                             env.now(),
@@ -533,8 +542,8 @@ class Estrusore(sim.Component):
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time)
                     self.dosaggio.fine_estrusione = env.now()
-                    print('estruso ', env.now(), str(
-                        self.n), self.dosaggio.cono.rfid)
+                    '''print('estruso ', env.now(), str(
+                        self.n), self.dosaggio.cono.rfid)'''
                     stato.check[self.n].append(self.dosaggio.estrusore)
                     self.dosaggio.activate()
                 break
@@ -601,7 +610,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission500_coni = 0
 
@@ -679,5 +688,4 @@ tot_ques = len(handlingest.claimers()
                + handlingest.requesters()
                + miscelatore.requesters())
 
-a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
