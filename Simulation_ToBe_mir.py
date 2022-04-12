@@ -147,7 +147,7 @@ class Dosaggio(sim.Component):
         return()
 
     #  Operations research version of setup
-    def setup(self, staz_call):
+    '''def setup(self, staz_call):
         global stato, obj_coni
         t = env.now()
 
@@ -169,10 +169,10 @@ class Dosaggio(sim.Component):
         self.cono.stato = 'A'
         self.cono.estrusore = self.estrusore
         self.cono.color = self.color
-        self.cono.valcrom = self.valcrom
+        self.cono.valcrom = self.valcrom'''
 
     #  Heuristc version of setup dosaggio
-    '''def setup(self, staz_call):
+    def setup(self, staz_call):
         global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
         t = env.now()
 
@@ -217,7 +217,7 @@ class Dosaggio(sim.Component):
 
             if not cono_found:
                 idx_que += 1
-                print('Cono non trovato, skip to', idx_que)'''
+                print('Cono non trovato, skip to', idx_que)
 
     def process(self):
         global stato
@@ -536,28 +536,28 @@ class Mission500_mp(sim.Component):
             yield self.hold(db_mir500_mp_mag.sample())
 
         elif self.dest == 'M' and n_cod_buff < upperbound_b:
-            yield self.hold(db_mir500_mp_mag.sample())
-            #  yield self.hold(0)
+            #  yield self.hold(db_mir500_mp_mag.sample())
+            yield self.hold(0)
             if remove_cod is not None:
                 stato.df_giacenza.loc[remove_cod, 'posizione'] = 'B'
-            yield self.hold(db_mir500_mp_buff.sample())
-            #  yield self.hold(0)
+            # yield self.hold(db_mir500_mp_buff.sample())
+            yield self.hold(0)
 
         elif self.dest == 'B':
-            yield self.hold(db_mir500_mp_buff.sample())
-            #  yield self.hold(0)
+            #  yield self.hold(db_mir500_mp_buff.sample())
+            yield self.hold(0)
             if remove_cod is not None:
                 stato.df_giacenza.loc[remove_cod, 'posizione'] = 'B'
-            yield self.hold(db_mir500_mp_buff.sample())
-            #  yield self.hold(0)
+            #  yield self.hold(db_mir500_mp_buff.sample())
+            yield self.hold(0)
 
         elif self.dest == 'M' and n_cod_buff >= upperbound_b:
-            yield self.hold(db_mir500_mp_mag.sample())
-           #   yield self.hold(0)
+            #  yield self.hold(db_mir500_mp_mag.sample())
+            yield self.hold(0)
             if remove_cod is not None:
                 stato.df_giacenza.loc[remove_cod, 'posizione'] = 'M'
-            yield self.hold(db_mir500_mp_mag.sample())
-            #  yield self.hold(0)
+            #  yield self.hold(db_mir500_mp_mag.sample())
+            yield self.hold(0)
 
         dict_picking[self.cod_pick][1] = 'S'
         dict_picking[self.cod_pick][2] = 'D'
@@ -664,10 +664,10 @@ n_mission500_coni = 0
 env = sim.Environment()
 
 
-DosaggioGenerator()
+#  DosaggioGenerator()
 
-mir500_mp = sim.Resource('MIR500 MP', capacity=1)
-mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
+mir500_mp = sim.Resource('MIR500 MP', capacity=100)
+mir500_coni = sim.Resource('MIR500 Coni', capacity=100)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
