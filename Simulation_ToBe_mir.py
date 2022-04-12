@@ -146,7 +146,8 @@ class Dosaggio(sim.Component):
         stato.dict_elements['elements'].append(stato.elements)
         return()
 
-    '''def setup(self, staz_call):
+    #  Operations research version of setup
+    def setup(self, staz_call):
         global stato, obj_coni
         t = env.now()
 
@@ -168,9 +169,10 @@ class Dosaggio(sim.Component):
         self.cono.stato = 'A'
         self.cono.estrusore = self.estrusore
         self.cono.color = self.color
-        self.cono.valcrom = self.valcrom'''
+        self.cono.valcrom = self.valcrom
 
-    def setup(self, staz_call):
+    #  Heuristc version of setup dosaggio
+    '''def setup(self, staz_call):
         global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
         t = env.now()
 
@@ -215,7 +217,7 @@ class Dosaggio(sim.Component):
 
             if not cono_found:
                 idx_que += 1
-                print('Cono non trovato, skip to', idx_que)
+                print('Cono non trovato, skip to', idx_que)'''
 
     def process(self):
         global stato
@@ -257,8 +259,8 @@ class Dosaggio(sim.Component):
             while handlingest.claimers().length() != 0:
                 yield self.hold(0.1)
         self.release()
-        '''print('miscelato ', env.now(),
-              self.estrusore, self.cono.rfid)'''
+        print('miscelato ', env.now(),
+              self.estrusore, self.cono.rfid)
         #  --------------------
 
         #  ingresso handlingest e arrivo sul buffer se non Leistritz
@@ -587,8 +589,8 @@ class Estrusore(sim.Component):
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time)
                     self.dosaggio.fine_estrusione = env.now()
-                    '''print('estruso ', env.now(), str(
-                        self.n), self.dosaggio.cono.rfid)'''
+                    print('estruso ', env.now(), str(
+                        self.n), self.dosaggio.cono.rfid)
                     stato.check[self.n].append(self.dosaggio.estrusore)
                     self.dosaggio.activate()
                 break
@@ -734,3 +736,21 @@ tot_ques = len(handlingest.claimers()
                + miscelatore.requesters())
 
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
+
+# STATISTICHE SULLA SATURAZIONE DEI SERVER
+sat_hand_1 = handlingpes.occupancy.mean()
+sat_misc = miscelatore.occupancy.mean()
+sat_hand_2 = handlingest.occupancy.mean()
+sat_staz_1 = stazione1.status.print_histogram(values=True, as_str=True)
+sat_staz_2 = stazione2.status.print_histogram(values=True, as_str=True)
+sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
+
+sat1 = E1.status.print_histogram(values=True, as_str=True)
+sat2 = E2.status.print_histogram(values=True, as_str=True)
+sat3 = E3.status.print_histogram(values=True, as_str=True)
+sat4 = E4.status.print_histogram(values=True, as_str=True)
+sat5 = E5.status.print_histogram(values=True, as_str=True)
+sat6 = E6.status.print_histogram(values=True, as_str=True)
+sat7 = E7.status.print_histogram(values=True, as_str=True)
+sat8 = E8.status.print_histogram(values=True, as_str=True)
+sat9 = E9.status.print_histogram(values=True, as_str=True)
