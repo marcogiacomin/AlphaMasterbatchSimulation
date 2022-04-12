@@ -167,7 +167,7 @@ class Dosaggio(sim.Component):
         return()
 
     #  Operations research version of setup
-    '''def setup(self, staz_call):
+    def setup(self, staz_call):
         global stato, obj_coni
         t = env.now()
 
@@ -189,10 +189,10 @@ class Dosaggio(sim.Component):
         self.cono.stato = 'A'
         self.cono.estrusore = self.estrusore
         self.cono.color = self.color
-        self.cono.valcrom = self.valcrom'''
+        self.cono.valcrom = self.valcrom
 
     #  Heuristc version of setup dosaggio
-    def setup(self, staz_call):
+    '''def setup(self, staz_call):
         global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
         t = env.now()
 
@@ -237,7 +237,7 @@ class Dosaggio(sim.Component):
 
             if not cono_found:
                 idx_que += 1
-                print('Cono non trovato, skip to', idx_que)
+                print('Cono non trovato, skip to', idx_que)'''
 
     def process(self):
         global stato
@@ -262,7 +262,6 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
-            print('passsivaaaaaaaaaa', env.now(), self.estrusore)
             self.staz_call.activate()
         yield self.passivate()
         #  ------------------
@@ -773,4 +772,4 @@ sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
 
-que_staz_dos.print_statistics()
+#  que_staz_dos.print_statistics()

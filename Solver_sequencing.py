@@ -4,8 +4,8 @@ import numpy as np
 
 t_now = 0
 
-coeff_con = 0.9
-coeff_time = 0.1
+coeff_con = 1
+coeff_time = 0
 coeff_mir = 10 * 0
 
 
@@ -121,6 +121,15 @@ def best_choice(t_now, stato):
     # The constraints are added to 'prob'
     prob += lp.lpSum([variables[d][c]
                       for d in df_dos['estrusore'] for c in containers]) == 1, "Single choice"
+
+    for d in df_dos['estrusore']:
+        for c in containers:
+            mask_ext = stato.df_coni['estrusore'] == d
+            df_con_ext = stato.df_coni[mask_ext]
+            tot = len(df_con_ext)
+            prob += ((variables[d][c] * tot <= 2),
+                     "Vincolo di coni x ext{}".format(str(d + c)),
+                     )
 
     i = 0
     for d in df_dos['estrusore']:
