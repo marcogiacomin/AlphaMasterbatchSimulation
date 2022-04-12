@@ -20,6 +20,7 @@ def dos_list(df, estrusori):
         if len(df_tmp) > 0:
             df_solver = pd.concat(
                 [df_solver, pd.DataFrame([df_tmp.iloc[0, ]])], axis=0)
+    df_solver['ID'] = df_solver.index
     df_solver.index = df_solver['estrusore']
     return(df_solver)
 
@@ -157,7 +158,8 @@ def best_choice(t_now, stato):
             if v.varValue == 1:
                 dos = v.name[8:10]
                 con = v.name[11:]
+                id_dos = df_dos.loc[dos, 'ID']
     else:
         print('Infeasible')
     #  ------------------------
-    return(dos, con)
+    return(id_dos, con)

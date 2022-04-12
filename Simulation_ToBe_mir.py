@@ -152,15 +152,13 @@ class Dosaggio(sim.Component):
         self.staz_call = staz_call
 
         dos_con = Solver_sequencing.best_choice(t, stato)
-        extruder = dos_con[0]
+        id_dos = dos_con[0]
         container = dos_con[1]
 
-        df_e = stato.df_OP[stato.df_OP['estrusore'] == extruder]
-        df_e.sort_values(['data', 'ordine', 'statino'], inplace=True)
-        best_dosaggio = df_e.iloc[0, :]
+        best_dosaggio = stato.df_OP.loc[id_dos, :]
         self.parameters(best_dosaggio)
         stato.df_OP.loc[[self.ID], 'stato'] = 'C'
-        print('Setting up ', env.now(), self.estrusore)
+        print('Setting up ', env.now(), self.estrusore, self.ID)
 
         for c in obj_coni:
             if c.rfid == container:
