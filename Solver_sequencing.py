@@ -4,9 +4,9 @@ import numpy as np
 
 t_now = 0
 
-coeff_con = 0.25
-coeff_time = 0.5
-coeff_mir = 10 * 0.25
+coeff_con = 0.2
+coeff_time = 0.7
+coeff_mir = 10 * 0.1
 
 
 def dos_list(df, estrusori):
@@ -58,7 +58,11 @@ def best_choice(t_now, stato):
     tcr = {}
 
     for e in stato.estrusori:
-        mask_est_que = stato.df_OP['stato'] == 'B'
+        mask_est_que = ((stato.df_OP['estrusore'] == e)
+                        & ((stato.df_OP['stato'] == 'D')
+                           | (stato.df_OP['stato'] == 'G')
+                           | (stato.df_OP['stato'] == 'M')
+                           | (stato.df_OP['stato'] == 'B')))
         df_est_que = stato.df_OP[mask_est_que]
         est_que_time = np.sum(df_est_que['TE'])
         tcr[e] = est_que_time
