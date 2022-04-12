@@ -1,6 +1,7 @@
 import module_class_cono
 import module_stats
 import Solver_sequencing
+import module_que_by_est
 
 import math
 import pandas as pd
@@ -76,16 +77,13 @@ db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
 
 class DosaggioGenerator(sim.Component):
     def process(self):
-        go_to = 1
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
-                if go_to == 1:
+                if random() <= 0.5:
                     s = stazione1
-                    go_to = 2
                 else:
                     s = stazione2
-                    go_to = 1
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
             else:
@@ -148,7 +146,7 @@ class Dosaggio(sim.Component):
         stato.dict_elements['elements'].append(stato.elements)
         return()
 
-    def setup(self, staz_call):
+    '''def setup(self, staz_call):
         global stato, obj_coni
         t = env.now()
 
@@ -170,7 +168,54 @@ class Dosaggio(sim.Component):
         self.cono.stato = 'A'
         self.cono.estrusore = self.estrusore
         self.cono.color = self.color
-        self.cono.valcrom = self.valcrom
+        self.cono.valcrom = self.valcrom'''
+
+    def setup(self, staz_call):
+        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
+        t = env.now()
+
+        self.staz_call = staz_call
+
+        df_coda = module_que_by_est.func_calc_que(
+            stato.estrusori,
+            stato.dict_TER, t,
+            stato.df_OP)
+
+        cono_found = False
+        idx_que = 0
+
+        while not cono_found:
+            best_dosaggio = df_coda.iloc[idx_que, :]
+
+            self.parameters(best_dosaggio)
+            print('Setting up ', env.now(), self.estrusore)
+
+            for cono in obj_coni:
+                if cono.estrusore == self.estrusore and cono.stato == 'D':
+                    cono_found = True
+                    self.cono = cono
+                    cono.stato = 'A'
+                    cono.estrusore = self.estrusore
+                    cono.color = self.color
+                    cono.valcrom = self.valcrom
+                    break
+
+            if not cono_found:
+                for cono in obj_coni:
+                    if (cono.valcrom <= self.valcrom
+                        and cono.color <= self.color
+                            and cono.stato == 'D'):
+                        cono_found = True
+                        self.cono = cono
+                        cono.stato = 'A'
+                        cono.estrusore = self.estrusore
+                        cono.color = self.color
+                        cono.valcrom = self.valcrom
+                        break
+
+            if not cono_found:
+                idx_que += 1
+                print('Cono non trovato, skip to', idx_que)
 
     def process(self):
         global stato
@@ -610,7 +655,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission500_coni = 0
 
