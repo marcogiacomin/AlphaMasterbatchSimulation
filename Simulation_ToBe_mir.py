@@ -77,6 +77,7 @@ db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
 
 class DosaggioGenerator(sim.Component):
     def process(self):
+        yield self.hold(0.5)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
@@ -86,6 +87,25 @@ class DosaggioGenerator(sim.Component):
                     s = stazione2
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
+            else:
+                yield self.hold(0.1)
+
+
+class DosaggioGeneratorAuto(sim.Component):
+    def setup(self):
+        self.pull = False
+
+    def process(self):
+        yield self.hold(1)
+        Dosaggio(staz_call=staz_auto)
+        yield self.hold(1)
+        Dosaggio(staz_call=staz_auto)
+        yield self.hold(5)
+        while True:
+            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
+            if self.pull and 'D' in stato.df_coni['stato'].values:
+                Dosaggio(staz_call=staz_auto)
+                self.pull = False
             else:
                 yield self.hold(0.1)
 
@@ -242,6 +262,7 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
+            print('passsivaaaaaaaaaa', env.now(), self.estrusore)
             self.staz_call.activate()
         yield self.passivate()
         #  ------------------
@@ -403,46 +424,41 @@ class Staz_auto(sim.Component):
 
     def process(self):
         global stato, dict_picking
-        yield self.hold(1)
         while True:
-            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if 'D' in stato.df_coni['stato'].values:
-                Dosaggio(staz_call=self)
-                while len(que_staz_dos) == 0:
-                    yield self.passivate()
-                self.dosaggio = que_staz_dos.pop()
-                self.dosaggio.cono.posizione = 'DOS ' + self.n
-                #  crea la picking list
-                dict_picking = self.picking_list()
-                self.dosaggio.inizio_dosatura = env.now()
-                self.start_mission()
+            while len(que_staz_dos) == 0:
+                yield self.passivate()
+            self.dosaggio = que_staz_dos.pop()
+            self.dosaggio.cono.posizione = 'DOS ' + self.n
+            #  crea la picking list
+            dict_picking = self.picking_list()
+            self.dosaggio.inizio_dosatura = env.now()
+            self.start_mission()
 
-                #  dosa le cose una per volta
-                #  chiama la missione per MIR
-                wait = True
-                while wait:
-                    tupla = self.weigh_and_pull()
-                    t_pes = tupla[0]
-                    mp = tupla[1]
-                    if t_pes != 0:
-                        dict_picking[mp][2] = 'WIP'
-                        yield self.hold(t_pes)
-                        del dict_picking[mp]
-                        if len(dict_picking) == 0:
-                            wait = False
-                    else:
-                        yield self.hold(0.1)
-                #  --------------------
-                self.dosaggio.fine_dosatura = env.now()
-                print('Dosato {} '.format(self.n), env.now(), str(
-                    self.dosaggio.estrusore), self.dosaggio.cono.rfid)
-                stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
-                                                            env.now(),
-                                                            self.dosaggio.kg,
-                                                            'staz.dosaggio')
-                self.dosaggio.activate()
-            else:
-                yield self.hold(0.1)
+            #  dosa le cose una per volta
+            #  chiama la missione per MIR
+            wait = True
+            while wait:
+                tupla = self.weigh_and_pull()
+                t_pes = tupla[0]
+                mp = tupla[1]
+                if t_pes != 0:
+                    dict_picking[mp][2] = 'WIP'
+                    yield self.hold(t_pes)
+                    del dict_picking[mp]
+                    if len(dict_picking) == 0:
+                        wait = False
+                else:
+                    yield self.hold(0.1)
+            #  --------------------
+            self.dosaggio.fine_dosatura = env.now()
+            print('Dosato {} '.format(self.n), env.now(), str(
+                self.dosaggio.estrusore), self.dosaggio.cono.rfid)
+            stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
+                                                        env.now(),
+                                                        self.dosaggio.kg,
+                                                        'staz.dosaggio')
+            self.dosaggio.activate()
+            generator_auto.pull = True
 
 
 class Mission500_coni(sim.Component):
@@ -473,7 +489,8 @@ class Mission500_coni(sim.Component):
             self.pulizia.activate()
         if self.mission == 'staz_auto dosaggio':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(db_mir500_coni_staz.sample())
+            #  yield self.hold(db_mir500_coni_staz.sample())
+            yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
@@ -657,14 +674,15 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission500_coni = 0
 
 env = sim.Environment()
 
 
-#  DosaggioGenerator()
+DosaggioGenerator()
+generator_auto = DosaggioGeneratorAuto()
 
 mir500_mp = sim.Resource('MIR500 MP', capacity=100)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=100)
@@ -754,3 +772,5 @@ sat6 = E6.status.print_histogram(values=True, as_str=True)
 sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
+
+que_staz_dos.print_statistics()
