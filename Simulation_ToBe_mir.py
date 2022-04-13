@@ -15,7 +15,6 @@ from sim_queue import (obj_buffer, que_staz_dos,
                        que_staz_dos_1, que_staz_dos_2)
 
 from datetime import datetime
-start = datetime.now()
 
 
 #  capienza di cassoni stazione e buffer
@@ -77,7 +76,6 @@ db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
 
 class DosaggioGenerator(sim.Component):
     def process(self):
-        yield self.hold(0.5)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
@@ -88,7 +86,7 @@ class DosaggioGenerator(sim.Component):
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
             else:
-                yield self.hold(1)
+                yield self.standby()
 
 
 class DosaggioGeneratorAuto(sim.Component):
@@ -100,14 +98,13 @@ class DosaggioGeneratorAuto(sim.Component):
         Dosaggio(staz_call=staz_auto)
         yield self.hold(1)
         Dosaggio(staz_call=staz_auto)
-        yield self.hold(5)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if self.pull and 'D' in stato.df_coni['stato'].values:
                 Dosaggio(staz_call=staz_auto)
                 self.pull = False
             else:
-                yield self.hold(0.1)
+                yield self.standby()
 
 
 class Dosaggio(sim.Component):
@@ -277,7 +274,7 @@ class Dosaggio(sim.Component):
 
         if self.estrusore not in ['E5', 'E9']:
             while handlingest.claimers().length() != 0:
-                yield self.hold(0.1)
+                yield self.standby()
         self.release()
         print('miscelato ', env.now(),
               self.estrusore, self.cono.rfid)
@@ -293,7 +290,7 @@ class Dosaggio(sim.Component):
             yield self.hold(db_handlingest.sample())
             i = stato.estrusori.index(self.estrusore)
             while len(obj_buffer[i]) >= 2:
-                yield self.hold(1)
+                yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
             self.cono.posizione = 'BUFF ' + self.estrusore
@@ -309,7 +306,7 @@ class Dosaggio(sim.Component):
             #  in futuro valutare dove è meglio far fare la sosta
             #  in funzione dell'ottimizzazione di TC
             while len(obj_buffer[i]) >= 2:
-                yield self.hold(0.1)
+                yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
             self.cono.posizione = 'BUFF' + self.estrusore
@@ -356,7 +353,7 @@ class Stazione(sim.Component):
                                                         'staz.dosaggio')
             # attiva solo se la coda del miscelatore è vuota
             while miscelatore.claimers().length() >= 2:
-                yield self.hold(0.1)
+                yield self.standby()
             self.dosaggio.activate()
 
 
@@ -449,6 +446,7 @@ class Staz_auto(sim.Component):
                         wait = False
                 else:
                     yield self.hold(0.1)
+                    #  capire a cosa serve questo else
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
             print('Dosato {} '.format(self.n), env.now(), str(
@@ -539,7 +537,7 @@ class Mission500_mp(sim.Component):
                                               'posizione'] = 'Handling'
                         break
                     else:
-                        yield self.hold(0.1)
+                        yield self.standby()
 
         #  inizia con la missione
         dict_picking[self.cod_pick][1] = 'H'
@@ -622,6 +620,8 @@ class PuliziaGenerator(sim.Component):
             if not self.pul_running:
                 Pulizia()
             yield self.hold(1)
+            #  qui potrei provare a mettere una condizione di
+            #  wait until per vedere se miglioro ancora le prestazioni
 
 
 class Pulizia(sim.Component):
@@ -678,6 +678,9 @@ h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission500_coni = 0
 
+start = datetime.now()
+print('PARTENZA ', start)
+
 env = sim.Environment()
 
 
@@ -713,6 +716,8 @@ pulizia_generator = PuliziaGenerator()
 stazione_pulizia = sim.Resource('Stazione di pulizia coni')
 
 env.run(till=(60 * h_sim))
+
+print('TEMPO DI RUN ', datetime.now() - start)
 # -------------------------------------------
 
 # verifica correttezza estrusori
@@ -739,8 +744,6 @@ df_timestamp_mir500 = pd.DataFrame.from_dict(
     stato.dict_timestamp_mir500).sort_values('n_mission')
 
 module_stats.plot_throughput(stato.dict_throughput)
-
-print('TEMPO DI RUN ', datetime.now() - start)
 
 module_stats.plot_quetot(stato.dict_elements)
 
