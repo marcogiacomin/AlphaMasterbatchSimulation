@@ -3,7 +3,7 @@ import pandas as pd
 import glob
 import os
 
-
+#  importazione statini
 path_folder_statini = "C:/Users/HP/Desktop/statini/*"
 
 dict_stat = {
@@ -58,31 +58,43 @@ for c in codes:
 
 dict_mp = dict.fromkeys(mp_list)
 dict_sl = dict.fromkeys(sl_list)
+#  ------------------------
 
-
+#  creazione bulk storage materie prime
 df_mp = pd.DataFrame.from_dict(dict_mp, orient='index', columns=['posizione'])
 
 df_mp.drop(index=df_mp.index[0], axis=0, inplace=True)
 
 df_mp['posizione'] = range(0, len(df_mp))
-df_mp['time_pick'] = 4
+df_mp['time_pick'] = None
 df_mp['qta'] = 500
 df_mp['zona'] = 'M'
 
-#  definizione del tempo di picking in funzione della posizione in magazzino
-for i in df_mp.index:
-    if df_mp.loc[i, 'posizione'] <= 103 and df_mp.loc[i, 'posizione'] > 13:
-        df_mp.loc[i, 'time_pick'] = 3
-    elif df_mp.loc[i, 'posizione'] > (213 + 4 + 10):
-        df_mp.loc[i, 'time_pick'] = None
-    elif df_mp.loc[i, 'posizione'] <= 13 and df_mp.loc[i, 'posizione'] > 3:
-        df_mp.loc[i, 'time_pick'] = 1
-    elif df_mp.loc[i, 'posizione'] < 4:
-        df_mp.loc[i, 'time_pick'] = 0
-        df_mp.loc[i, 'zona'] = 'S'
+sections = 10
+containers_in_section = len(df_mp) / sections
+dict_times = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
+              6: 1, 7: 2, 8: 3, 9: 4, 10: 5}
 
+#  definizione del tempo di picking in funzione della posizione in magazzino
+for section, time in dict_times.items():
+    for idx in df_mp.index:
+        if (df_mp.loc[idx, 'posizione'] <= (section * containers_in_section)
+                and df_mp.loc[idx, 'posizione'] >= ((section - 1) * containers_in_section)):
+            df_mp.loc[idx, 'time_pick'] = time
+        elif df_mp.loc[idx, 'posizione'] > section * containers_in_section:
+            break
+
+i = 0
+for mp in df_mp.index:
+    df_mp.loc[mp, 'time_pick'] = 0
+    i += 1
+    if i == 4:
+        break
+
+#  creazione magrob per semilavorati
 df_sl = pd.DataFrame.from_dict(dict_sl, orient='index', columns=['posizione'])
 df_sl['posizione'] = range(0, len(df_sl))
 df_sl['qta'] = 100
 df_sl['zona'] = 'M'
 df_sl.iloc[0, 2] = 'S'
+# ----------------------
