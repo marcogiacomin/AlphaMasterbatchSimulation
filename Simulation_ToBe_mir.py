@@ -359,22 +359,34 @@ class Staz_auto(sim.Component):
         global stato
         dict_picking = {}
         idx = 0
-        for mp in self.dosaggio.materie_prime:
-            #  l'if c'è per prevenire il fatto
-            #  che potrebbero esserci codici nuovi
-            if mp in stato.df_stock_mp.index:
-                if dict_picking.get(mp) is None:
-                    dict_picking[mp] = []
-                    dict_picking[mp].append(self.dosaggio.peso_mp[idx])
-                    dict_picking[mp].append(
-                        stato.df_stock_mp.loc[mp, 'zona'])
-                    if stato.df_stock_mp.loc[mp, 'zona'] == 'S':
-                        dict_picking[mp].append('D')
+        for codice in self.dosaggio.materie_prime:
+            if codice in stato.df_stock_mp.index:
+                if dict_picking.get(codice) is None:
+                    dict_picking[codice] = []
+                    dict_picking[codice].append(self.dosaggio.peso_mp[idx])
+                    dict_picking[codice].append(
+                        stato.df_stock_mp.loc[codice, 'zona'])
+                    if stato.df_stock_mp.loc[codice, 'zona'] == 'S':
+                        dict_picking[codice].append('D')
                     else:
-                        dict_picking[mp].append('O')
+                        dict_picking[codice].append('O')
                     idx += 1
                 else:
-                    dict_picking[mp][0] += self.dosaggio.peso_mp[idx]
+                    dict_picking[codice][0] += self.dosaggio.peso_mp[idx]
+                    idx += 1
+            elif codice in stato.df_stock_sl.index:
+                if dict_picking.get(codice) is None:
+                    dict_picking[codice] = []
+                    dict_picking[codice].append(self.dosaggio.peso_mp[idx])
+                    dict_picking[codice].append(
+                        stato.df_stock_sl.loc[codice, 'zona'])
+                    if stato.df_stock_sl.loc[codice, 'zona'] == 'S':
+                        dict_picking[codice].append('D')
+                    else:
+                        dict_picking[codice].append('O')
+                    idx += 1
+                else:
+                    dict_picking[codice][0] += self.dosaggio.peso_mp[idx]
                     idx += 1
         return(dict_picking)
 
@@ -388,7 +400,6 @@ class Staz_auto(sim.Component):
                     Mission500_mp(codice=mp, mission='picking')
                     break
             elif mp in stato.df_stock_sl.index:
-                print('quiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii')
                 if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
                     dict_picking[mp][2] = 'R'  # mette stato "richiesto"
                     n_mission100_sl += 1
@@ -442,7 +453,8 @@ class Staz_auto(sim.Component):
                     dict_picking[mp][2] = 'WIP'
 
                     #  rimuove dalla giacenza i kg di mp usata
-                    stato.df_stock_mp.loc[mp, 'qta'] -= dict_picking[mp][0]
+                    if mp in stato.df_stock_mp.index:
+                        stato.df_stock_mp.loc[mp, 'qta'] -= dict_picking[mp][0]
 
                     yield self.hold(t_pes)
                     del dict_picking[mp]

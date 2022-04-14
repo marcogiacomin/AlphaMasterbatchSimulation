@@ -85,3 +85,4 @@ df_sl = pd.DataFrame.from_dict(dict_sl, orient='index', columns=['posizione'])
 df_sl['posizione'] = range(0, len(df_sl))
 df_sl['qta'] = 100
 df_sl['zona'] = 'M'
+df_sl.iloc[0, 2] = 'S'
