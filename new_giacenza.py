@@ -87,6 +87,7 @@ for section, time in dict_times.items():
 i = 0
 for mp in df_mp.index:
     df_mp.loc[mp, 'time_pick'] = 0
+    df_mp.loc[mp, 'zona'] = 'S'
     i += 1
     if i == 4:
         break
