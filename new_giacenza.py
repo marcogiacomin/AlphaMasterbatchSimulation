@@ -45,30 +45,43 @@ for i in [('cod.i' + str(n)) for n in range(1, 16)]:
     all_code.extend(dict_stat[i])
 
 codes = list(set(all_code))
+mp_list = []
+sl_list = []
 
-dict_giacenza = dict.fromkeys(codes)
+for c in codes:
+    if c == '':
+        pass
+    elif c[0] == '5':
+        sl_list.append(c)
+    else:
+        mp_list.append(c)
+
+dict_mp = dict.fromkeys(mp_list)
+dict_sl = dict.fromkeys(sl_list)
 
 
-df_giacenza = pd.DataFrame.from_dict(dict_giacenza, orient='index',
-                                     columns=['posizione'])
+df_mp = pd.DataFrame.from_dict(dict_mp, orient='index', columns=['posizione'])
 
-df_giacenza.drop(index=df_giacenza.index[0],
-                 axis=0,
-                 inplace=True)
+df_mp.drop(index=df_mp.index[0], axis=0, inplace=True)
 
-df_giacenza['posizione'] = range(0, len(df_giacenza))
-df_giacenza['time_pick'] = 4
-df_giacenza['qta'] = 500
-df_giacenza['zona'] = 'M'
+df_mp['posizione'] = range(0, len(df_mp))
+df_mp['time_pick'] = 4
+df_mp['qta'] = 500
+df_mp['zona'] = 'M'
 
 #  definizione del tempo di picking in funzione della posizione in magazzino
-for i in df_giacenza.index:
-    if df_giacenza.loc[i, 'posizione'] <= 103 and df_giacenza.loc[i, 'posizione'] > 13:
-        df_giacenza.loc[i, 'time_pick'] = 3
-    elif df_giacenza.loc[i, 'posizione'] > (213 + 4 + 10):
-        df_giacenza.loc[i, 'time_pick'] = None
-    elif df_giacenza.loc[i, 'posizione'] <= 13 and df_giacenza.loc[i, 'posizione'] > 3:
-        df_giacenza.loc[i, 'time_pick'] = 1
-    elif df_giacenza.loc[i, 'posizione'] < 4:
-        df_giacenza.loc[i, 'time_pick'] = 0
-        df_giacenza.loc[i, 'zona'] = 'S'
+for i in df_mp.index:
+    if df_mp.loc[i, 'posizione'] <= 103 and df_mp.loc[i, 'posizione'] > 13:
+        df_mp.loc[i, 'time_pick'] = 3
+    elif df_mp.loc[i, 'posizione'] > (213 + 4 + 10):
+        df_mp.loc[i, 'time_pick'] = None
+    elif df_mp.loc[i, 'posizione'] <= 13 and df_mp.loc[i, 'posizione'] > 3:
+        df_mp.loc[i, 'time_pick'] = 1
+    elif df_mp.loc[i, 'posizione'] < 4:
+        df_mp.loc[i, 'time_pick'] = 0
+        df_mp.loc[i, 'zona'] = 'S'
+
+df_sl = pd.DataFrame.from_dict(dict_sl, orient='index', columns=['posizione'])
+df_sl['posizione'] = range(0, len(df_sl))
+df_sl['qta'] = 100
+df_sl['zona'] = 'M'

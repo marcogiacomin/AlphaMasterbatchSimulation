@@ -25,7 +25,8 @@ parameters = {'t_tool': 15,  # tempo robot cambio tool in secondi
 
 data = {'df_coni': pd.read_csv(r"C:\Users\HP\Desktop\mag_coni.csv",
                                sep=';', index_col='RFID'),
-        'df_giacenza': new_giacenza.df_giacenza,
+        'df_stock_mp': new_giacenza.df_mp,
+        'df_stock_sl': new_giacenza.df_sl,
         'df_OP': ETL_all_OPs.func_OP(path_folder_statini, path_folder_progprod,
                                      parameters['t_tool'],
                                      mass_v=parameters['t_mass_v'],
@@ -111,7 +112,8 @@ class Stato():
         self.max_cicli = parameters['max_cicli']
 
         self.df_coni = data['df_coni']
-        self.df_giacenza = data['df_giacenza']
+        self.df_stock_mp = data['df_stock_mp']
+        self.df_stock_sl = data['df_stock_sl']
         self.df_OP = data['df_OP']
 
         self.elements = variables['elements']

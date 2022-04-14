@@ -362,13 +362,13 @@ class Staz_auto(sim.Component):
         for mp in self.dosaggio.materie_prime:
             #  l'if c'è per prevenire il fatto
             #  che potrebbero esserci codici nuovi
-            if mp in stato.df_giacenza.index:
+            if mp in stato.df_stock_mp.index:
                 if dict_picking.get(mp) is None:
                     dict_picking[mp] = []
                     dict_picking[mp].append(self.dosaggio.peso_mp[idx])
                     dict_picking[mp].append(
-                        stato.df_giacenza.loc[mp, 'zona'])
-                    if stato.df_giacenza.loc[mp, 'zona'] == 'S':
+                        stato.df_stock_mp.loc[mp, 'zona'])
+                    if stato.df_stock_mp.loc[mp, 'zona'] == 'S':
                         dict_picking[mp].append('D')
                     else:
                         dict_picking[mp].append('O')
@@ -434,7 +434,7 @@ class Staz_auto(sim.Component):
                     dict_picking[mp][2] = 'WIP'
 
                     #  rimuove dalla giacenza i kg di mp usata
-                    stato.df_giacenza.loc[mp, 'qta'] -= dict_picking[mp][0]
+                    stato.df_stock_mp.loc[mp, 'qta'] -= dict_picking[mp][0]
 
                     yield self.hold(t_pes)
                     del dict_picking[mp]
@@ -516,8 +516,8 @@ class Mission500_mp(sim.Component):
 
         if self.mission == 'picking':
             #  individua i codici presenti nella staz_auto
-            mask_station = (stato.df_giacenza['zona'] == 'S')
-            cod_staz = list(stato.df_giacenza[mask_station].index)
+            mask_station = (stato.df_stock_mp['zona'] == 'S')
+            cod_staz = list(stato.df_stock_mp[mask_station].index)
 
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
@@ -526,9 +526,8 @@ class Mission500_mp(sim.Component):
                 for c in cod_staz:
                     if c not in dict_picking.keys():
                         remove_cod = c
-                        print(remove_cod)
                         go = True
-                        stato.df_giacenza.loc[remove_cod,
+                        stato.df_stock_mp.loc[remove_cod,
                                               'zona'] = 'Handling'
                         break
                     else:
@@ -538,12 +537,12 @@ class Mission500_mp(sim.Component):
             dict_picking[self.cod_pick][1] = 'H'
             self.partenza = env.now()
 
-            if stato.df_giacenza.loc[remove_cod, 'qta'] >= 90:
-                stato.df_giacenza.loc[remove_cod, 'zona'] = 'M'
+            if stato.df_stock_mp.loc[remove_cod, 'qta'] >= 90:
+                stato.df_stock_mp.loc[remove_cod, 'zona'] = 'M'
                 # yield self.hold(db_mir500_mp_buff.sample())
                 yield self.hold(0)
             else:
-                stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
+                stato.df_stock_mp.loc[remove_cod, 'zona'] = 'DEPALL'
                 # yield self.hold(go to depall distribution)
                 yield self.hold(0)
                 while depallettizzatore.requesters().length() >= 1:
@@ -555,7 +554,7 @@ class Mission500_mp(sim.Component):
 
             dict_picking[self.cod_pick][1] = 'S'
             dict_picking[self.cod_pick][2] = 'D'
-            stato.df_giacenza.loc[self.cod_pick, 'zona'] = 'S'
+            stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'S'
             self.scarico = env.now()
             stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
                 self, stato.dict_timestamp_picking)
@@ -564,7 +563,7 @@ class Mission500_mp(sim.Component):
             #  da differenziare le varie casistiche
             # yield self.hold(go to depall distribution)
             yield self.hold(0)
-            stato.df_giacenza.loc[self.cod_pick, 'zona'] = 'M'
+            stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'M'
 
         self.release()
         yield self.passivate()
@@ -665,9 +664,8 @@ class Depallettizzazione(sim.Component):
     def process(self):
         global stato
         yield self.request(depallettizzatore)
-        #  yield self.hold(db_pulizia.sample())
         yield self.hold(0)
-        stato.df_giacenza.loc[self.code, 'qta'] = 500
+        stato.df_stock_mp.loc[self.code, 'qta'] = 500
         Mission500_mp(codice=self.code, mission='recupero_depall')
         self.release()
         self.passivate()
@@ -689,7 +687,7 @@ env = sim.Environment()
 generator_auto = DosaggioGeneratorAuto()
 
 mir500_mp = sim.Resource('MIR500 MP', capacity=1)
-mir500_coni = sim.Resource('MIR500 Coni', capacity=100)
+mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
