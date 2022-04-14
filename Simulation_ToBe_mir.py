@@ -149,7 +149,7 @@ class Dosaggio(sim.Component):
     def end_process(self):
         global stato
         self.cono.cicli += 1
-        self.cono.posizione = 'MAG'
+        self.cono.zona = 'MAG'
         self.cono.stato = 'D'
 
         stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
@@ -242,7 +242,7 @@ class Dosaggio(sim.Component):
 
         if self.staz_call.n in ['S1', 'S2']:
             yield self.request(handlingpes)
-            self.cono.posizione = 'GUA_PES'
+            self.cono.zona = 'GUA_PES'
             stato.elements += 1
             stato.dict_elements['time'].append(env.now()/60)
             stato.dict_elements['elements'].append(stato.elements)
@@ -256,7 +256,7 @@ class Dosaggio(sim.Component):
             yield self.passivate()
 
         self.enter(self.staz_call.que)
-        self.cono.posizione = 'Que ' + self.staz_call.n
+        self.cono.zona = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -264,10 +264,10 @@ class Dosaggio(sim.Component):
         #  ------------------
 
         #  ingresso nel miscelatore
-        self.cono.posizione = 'MISC_request'
+        self.cono.zona = 'MISC_request'
         yield self.request(miscelatore)
         self.inizio_miscelazione = env.now()
-        self.cono.posizione = 'MISC'
+        self.cono.zona = 'MISC'
         stato.df_OP.loc[[self.ID], 'stato'] = 'M'
         yield self.hold(db_miscelatore.sample())
         self.fine_miscelazione = env.now()
@@ -282,10 +282,10 @@ class Dosaggio(sim.Component):
 
         #  ingresso handlingest e arrivo sul buffer se non Leistritz
         if self.estrusore not in ['E5', 'E9']:
-            self.cono.posizione = 'GUA_EST_request'
+            self.cono.zona = 'GUA_EST_request'
             yield self.request(handlingest)
             stato.df_OP.loc[[self.ID], 'stato'] = 'G'
-            self.cono.posizione = 'GUA_EST'
+            self.cono.zona = 'GUA_EST'
             self.ingresso_handlingest = env.now()
             yield self.hold(db_handlingest.sample())
             i = stato.estrusori.index(self.estrusore)
@@ -293,12 +293,12 @@ class Dosaggio(sim.Component):
                 yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.posizione = 'BUFF ' + self.estrusore
+            self.cono.zona = 'BUFF ' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
             self.release()
             self.fine_handlingest = env.now()
         else:
-            self.cono.posizione = 'attesa sul mir'
+            self.cono.zona = 'attesa sul mir'
             i = stato.estrusori.index(self.estrusore)
             #  qui deve chiamare il mir500 che prende il cono pieno
             #  lo carica e lo porta fino all'estrusore
@@ -309,7 +309,7 @@ class Dosaggio(sim.Component):
                 yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.posizione = 'BUFF' + self.estrusore
+            self.cono.zona = 'BUFF' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
         #  -------------------
 
@@ -340,7 +340,7 @@ class Stazione(sim.Component):
             if len(self.que) == 0:
                 yield self.passivate()
             self.dosaggio = self.que.pop()
-            self.dosaggio.cono.posizione = 'DOS ' + self.n
+            self.dosaggio.cono.zona = 'DOS ' + self.n
             self.dosaggio.inizio_dosatura = env.now()
             yield self.hold(db_pesatura.sample())
             self.dosaggio.fine_dosatura = env.now()
@@ -375,8 +375,8 @@ class Staz_auto(sim.Component):
                     dict_picking[mp] = []
                     dict_picking[mp].append(self.dosaggio.peso_mp[idx])
                     dict_picking[mp].append(
-                        stato.df_giacenza.loc[mp, 'posizione'])
-                    if stato.df_giacenza.loc[mp, 'posizione'] == 'S':
+                        stato.df_giacenza.loc[mp, 'zona'])
+                    if stato.df_giacenza.loc[mp, 'zona'] == 'S':
                         dict_picking[mp].append('D')
                     else:
                         dict_picking[mp].append('O')
@@ -392,7 +392,7 @@ class Staz_auto(sim.Component):
             if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
                 dict_picking[mp][2] = 'R'  # mette stato "richiesto"
                 n_mission500_mp += 1
-                Mission500_mp(codice=mp)
+                Mission500_mp(codice=mp, mission='picking')
                 break
         return()
 
@@ -425,7 +425,7 @@ class Staz_auto(sim.Component):
             while len(que_staz_dos) == 0:
                 yield self.passivate()
             self.dosaggio = que_staz_dos.pop()
-            self.dosaggio.cono.posizione = 'DOS ' + self.n
+            self.dosaggio.cono.zona = 'DOS ' + self.n
             #  crea la picking list
             dict_picking = self.picking_list()
             self.dosaggio.inizio_dosatura = env.now()
@@ -440,12 +440,16 @@ class Staz_auto(sim.Component):
                 mp = tupla[1]
                 if t_pes != 0:
                     dict_picking[mp][2] = 'WIP'
+
+                    #  rimuove dalla giacenza i kg di mp usata
+                    stato.df_giacenza.loc[mp, 'qta'] -= dict_picking[mp][0]
+
                     yield self.hold(t_pes)
                     del dict_picking[mp]
                     if len(dict_picking) == 0:
                         wait = False
                 else:
-                    yield self.hold(0.1)
+                    yield self.standby()
                     #  capire a cosa serve questo else
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
@@ -479,14 +483,14 @@ class Mission500_coni(sim.Component):
         n_mission500_coni += 1
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
-            self.cono.posizione = 'HANDLING'
+            self.cono.zona = 'HANDLING'
             #  yield self.hold(db_mir500_coni_pul.sample())
             yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
-        if self.mission == 'staz_auto dosaggio':
-            self.cono.posizione = 'HANDLING'
+        elif self.mission == 'staz_auto dosaggio':
+            self.cono.zona = 'HANDLING'
             #  yield self.hold(db_mir500_coni_staz.sample())
             yield self.hold(0)
             self.scarico = env.now()
@@ -499,88 +503,125 @@ class Mission500_coni(sim.Component):
 
 
 class Mission500_mp(sim.Component):
-    def setup(self, codice):
+    def setup(self, codice, mission):
         global dict_picking, n_mission500_mp
         self.veicolo = 'MIR500 MP'
         self.n_mission = n_mission500_mp
         self.cod_pick = codice
-        self.peso = dict_picking[codice][0]
-        self.dest = dict_picking[codice][1]
-
-        self.richiesta = env.now()
-        self.partenza = 0
-        self.scarico = 0
+        self.mission = mission
+        if self.mission == 'picking':
+            self.peso = dict_picking[codice][0]
+            self.dest = dict_picking[codice][1]
+            self.richiesta = env.now()
+            self.partenza = 0
+            self.scarico = 0
 
     def process(self):
         global stato, dict_picking, n_mission500_mp
 
         #  seize resource
         yield self.request(mir500_mp)
-        #  individua i codici che si possono togliere dalla staz_auto
-        mask_station = ((stato.df_giacenza['posizione'] == 'S'))
-        cod_staz = list(stato.df_giacenza[mask_station].index)
-        #  ------------
 
-        #  seleziona il codice da portare via dalla staz_auto
-        remove_cod = None
+        if self.mission == 'picking':
+            #  individua i codici che si possono togliere dalla staz_auto
+            mask_station = ((stato.df_giacenza['zona'] == 'S'))
+            cod_staz = list(stato.df_giacenza[mask_station].index)
+            #  seleziona il codice da portare via dalla staz_auto
+            remove_cod = None
 
-        n_cod_staz = len(stato.df_giacenza[mask_station])
+            n_cod_staz = len(stato.df_giacenza[mask_station])
 
-        if n_cod_staz >= upperbound_s:
-            go = False
-            while not go:
-                for c in cod_staz:
-                    if c not in dict_picking.keys():
-                        remove_cod = c
-                        go = True
-                        stato.df_giacenza.loc[remove_cod,
-                                              'posizione'] = 'Handling'
-                        break
-                    else:
+            if n_cod_staz >= upperbound_s:
+                go = False
+                while not go:
+                    for c in cod_staz:
+                        if c not in dict_picking.keys():
+                            remove_cod = c
+                            go = True
+                            stato.df_giacenza.loc[remove_cod,
+                                                  'zona'] = 'Handling'
+                            print(stato.df_giacenza.loc[remove_cod,
+                                                        'zona'])
+                            break
+                        else:
+                            yield self.standby()
+
+            #  inizia con la missione
+            dict_picking[self.cod_pick][1] = 'H'
+            self.partenza = env.now()
+
+            #  individua se il buffer non è pieno
+            mask_buff = ((stato.df_giacenza['zona'] == 'B'))
+            n_cod_buff = len(stato.df_giacenza[mask_buff])
+
+            if n_cod_staz < upperbound_s:
+                yield self.hold(db_mir500_mp_mag.sample())
+
+            elif self.dest == 'M' and n_cod_buff < upperbound_b:
+                #  yield self.hold(db_mir500_mp_mag.sample())
+                yield self.hold(0)
+                if (remove_cod is not None
+                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'B'
+                    # yield self.hold(db_mir500_mp_buff.sample())
+                    yield self.hold(0)
+                elif (remove_cod is not None
+                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
+                    # yield self.hold(go to depall distribution)
+                    yield self.hold(0)
+                    while depallettizzatore.requesters().length() >= 1:
                         yield self.standby()
+                    Depallettizzazione(mp=remove_cod)
 
-        #  inizia con la missione
-        dict_picking[self.cod_pick][1] = 'H'
-        self.partenza = env.now()
+            elif self.dest == 'B':
+                #  yield self.hold(db_mir500_mp_buff.sample())
+                yield self.hold(0)
+                if (remove_cod is not None
+                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'B'
+                    # yield self.hold(db_mir500_mp_buff.sample())
+                    yield self.hold(0)
+                elif (remove_cod is not None
+                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
+                    # yield self.hold(go to depall distribution)
+                    yield self.hold(0)
+                    while depallettizzatore.requesters().length() >= 1:
+                        yield self.standby()
+                    Depallettizzazione(mp=remove_cod)
 
-        #  individua se il buffer non è pieno
-        mask_buff = ((stato.df_giacenza['posizione'] == 'B'))
-        n_cod_buff = len(stato.df_giacenza[mask_buff])
+            elif self.dest == 'M' and n_cod_buff >= upperbound_b:
+                #  yield self.hold(db_mir500_mp_mag.sample())
+                yield self.hold(0)
+                if (remove_cod is not None
+                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'M'
+                    #  yield self.hold(db_mir500_mp_mag.sample())
+                    yield self.hold(0)
+                elif (remove_cod is not None
+                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
+                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
+                    # yield self.hold(go to depall distribution)
+                    yield self.hold(0)
+                    while depallettizzatore.requesters().length() >= 1:
+                        yield self.standby()
+                    Depallettizzazione(mp=remove_cod)
 
-        if n_cod_staz < upperbound_s:
-            yield self.hold(db_mir500_mp_mag.sample())
+            dict_picking[self.cod_pick][1] = 'S'
+            dict_picking[self.cod_pick][2] = 'D'
+            stato.df_giacenza.loc[self.cod_pick, 'zona'] = 'S'
+            self.scarico = env.now()
+            stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
+                self, stato.dict_timestamp_picking)
 
-        elif self.dest == 'M' and n_cod_buff < upperbound_b:
-            #  yield self.hold(db_mir500_mp_mag.sample())
+        elif self.mission == 'recupero_depall':
+            #  da differenziare le varie casistiche
+            # yield self.hold(go to depall distribution)
             yield self.hold(0)
-            if remove_cod is not None:
-                stato.df_giacenza.loc[remove_cod, 'posizione'] = 'B'
-            # yield self.hold(db_mir500_mp_buff.sample())
-            yield self.hold(0)
+            stato.df_giacenza.loc[self.cod_pick, 'zona'] = 'M'
 
-        elif self.dest == 'B':
-            #  yield self.hold(db_mir500_mp_buff.sample())
-            yield self.hold(0)
-            if remove_cod is not None:
-                stato.df_giacenza.loc[remove_cod, 'posizione'] = 'B'
-            #  yield self.hold(db_mir500_mp_buff.sample())
-            yield self.hold(0)
-
-        elif self.dest == 'M' and n_cod_buff >= upperbound_b:
-            #  yield self.hold(db_mir500_mp_mag.sample())
-            yield self.hold(0)
-            if remove_cod is not None:
-                stato.df_giacenza.loc[remove_cod, 'posizione'] = 'M'
-            #  yield self.hold(db_mir500_mp_mag.sample())
-            yield self.hold(0)
-
-        dict_picking[self.cod_pick][1] = 'S'
-        dict_picking[self.cod_pick][2] = 'D'
-        stato.df_giacenza.loc[self.cod_pick, 'posizione'] = 'S'
         self.release()
-        self.scarico = env.now()
-        stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
-            self, stato.dict_timestamp_picking)
         yield self.passivate()
 
 
@@ -599,7 +640,7 @@ class Estrusore(sim.Component):
                     self.dosaggio = obj_buffer[i].pop()
                     stato.df_OP.loc[[self.dosaggio.ID], 'stato'] = 'E'
                     self.dosaggio.inizio_estrusione = env.now()
-                    self.dosaggio.cono.posizione = est
+                    self.dosaggio.cono.zona = est
                     extrusion_time = db_extrusion.sample()
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time)
@@ -648,7 +689,7 @@ class Pulizia(sim.Component):
                 Mission500_coni(cono=cono, pulizia=self,
                                 mission='stazione pulizia')
                 yield self.passivate()
-                cono.posizione = 'PUL'
+                cono.zona = 'PUL'
                 self.inizio_pulizia = env.now()
                 #  yield self.hold(db_pulizia.sample())
                 yield self.hold(0)
@@ -663,12 +704,27 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 self.scarico_cono = env.now()
                 cono.stato = 'D'
-                cono.posizione = 'MAG'
+                cono.zona = 'MAG'
                 cono.coda_pul = False
                 stato.dict_timestamp_pulizie =\
                     module_stats.aggiorna_timestamp_pulizie(
                         self, stato.dict_timestamp_pulizie)
                 break
+        self.passivate()
+
+
+class Depallettizzazione(sim.Component):
+    def setup(self, mp):
+        self.code = mp
+
+    def process(self):
+        global stato
+        yield self.request(depallettizzatore)
+        #  yield self.hold(db_pulizia.sample())
+        yield self.hold(0)
+        stato.df_giacenza.loc[self.code, 'qta'] = 500
+        Mission500_mp(codice=self.code, mission='recupero_depall')
+        self.release()
         self.passivate()
 
 
@@ -714,6 +770,7 @@ obj_est = [E1, E2, E3, E4, E5, E6, E7, E8, E9]
 pulizia_generator = PuliziaGenerator()
 
 stazione_pulizia = sim.Resource('Stazione di pulizia coni')
+depallettizzatore = sim.Resource('Stazione di depallettizzazione')
 
 env.run(till=(60 * h_sim))
 

@@ -57,13 +57,16 @@ df_giacenza.drop(index=df_giacenza.index[0],
                  inplace=True)
 
 df_giacenza['posizione'] = range(0, len(df_giacenza))
-df_giacenza['qta'] = 500
 df_giacenza['time_pick'] = 4
+df_giacenza['qta'] = 500
+df_giacenza['zona'] = 'M'
 
 #  definizione del tempo di picking in funzione della posizione in magazzino
 for i in df_giacenza.index:
     if df_giacenza.loc[i, 'posizione'] <= 103 and df_giacenza.loc[i, 'posizione'] > 13:
         df_giacenza.loc[i, 'time_pick'] = 3
+    elif df_giacenza.loc[i, 'posizione'] > (213 + 4 + 10):
+        df_giacenza.loc[i, 'time_pick'] = None
     elif df_giacenza.loc[i, 'posizione'] <= 13 and df_giacenza.loc[i, 'posizione'] > 3:
         df_giacenza.loc[i, 'time_pick'] = 1
     elif df_giacenza.loc[i, 'posizione'] < 4:
