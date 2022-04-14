@@ -17,11 +17,6 @@ from sim_queue import (obj_buffer, que_staz_dos,
 from datetime import datetime
 
 
-#  capienza di cassoni stazione e buffer
-upperbound_s = 4
-upperbound_b = 10
-#  ----------------
-
 # set distributions for service times
 d_interarrival = sim.External(stats.burr, c=3.145066166877723,
                               d=0.4544712096918647,
@@ -68,9 +63,6 @@ db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
 
 d_mir500_mp_mag = sim.Normal(mean=3, standard_deviation=0.3)  # only go
 db_mir500_mp_mag = sim.Bounded(d_mir500_mp_mag, lowerbound=0.5, upperbound=6)
-
-d_mir500_mp_buff = sim.Normal(mean=1, standard_deviation=0.1)  # only go
-db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
 #  --------------------
 
 
@@ -276,8 +268,8 @@ class Dosaggio(sim.Component):
             while handlingest.claimers().length() != 0:
                 yield self.standby()
         self.release()
-        print('miscelato ', env.now(),
-              self.estrusore, self.cono.rfid)
+        '''print('miscelato ', env.now(),
+              self.estrusore, self.cono.rfid)'''
         #  --------------------
 
         #  ingresso handlingest e arrivo sul buffer se non Leistritz
@@ -344,8 +336,8 @@ class Stazione(sim.Component):
             self.dosaggio.inizio_dosatura = env.now()
             yield self.hold(db_pesatura.sample())
             self.dosaggio.fine_dosatura = env.now()
-            print('Dosato {} '.format(self.n), env.now(), str(
-                self.dosaggio.estrusore), self.dosaggio.cono.rfid)
+            '''print('Dosato {} '.format(self.n), env.now(), str(
+                self.dosaggio.estrusore), self.dosaggio.cono.rfid)'''
 
             stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
                                                         env.now(),
@@ -453,8 +445,8 @@ class Staz_auto(sim.Component):
                     #  capire a cosa serve questo else
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
-            print('Dosato {} '.format(self.n), env.now(), str(
-                self.dosaggio.estrusore), self.dosaggio.cono.rfid)
+            '''print('Dosato {} '.format(self.n), env.now(), str(
+                self.dosaggio.estrusore), self.dosaggio.cono.rfid)'''
             stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
                                                         env.now(),
                                                         self.dosaggio.kg,
@@ -523,90 +515,43 @@ class Mission500_mp(sim.Component):
         yield self.request(mir500_mp)
 
         if self.mission == 'picking':
-            #  individua i codici che si possono togliere dalla staz_auto
-            mask_station = ((stato.df_giacenza['zona'] == 'S'))
+            #  individua i codici presenti nella staz_auto
+            mask_station = (stato.df_giacenza['zona'] == 'S')
             cod_staz = list(stato.df_giacenza[mask_station].index)
+
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
-
-            n_cod_staz = len(stato.df_giacenza[mask_station])
-
-            if n_cod_staz >= upperbound_s:
-                go = False
-                while not go:
-                    for c in cod_staz:
-                        if c not in dict_picking.keys():
-                            remove_cod = c
-                            go = True
-                            stato.df_giacenza.loc[remove_cod,
-                                                  'zona'] = 'Handling'
-                            print(stato.df_giacenza.loc[remove_cod,
-                                                        'zona'])
-                            break
-                        else:
-                            yield self.standby()
+            go = False
+            while not go:
+                for c in cod_staz:
+                    if c not in dict_picking.keys():
+                        remove_cod = c
+                        print(remove_cod)
+                        go = True
+                        stato.df_giacenza.loc[remove_cod,
+                                              'zona'] = 'Handling'
+                        break
+                    else:
+                        yield self.standby()
 
             #  inizia con la missione
             dict_picking[self.cod_pick][1] = 'H'
             self.partenza = env.now()
 
-            #  individua se il buffer non è pieno
-            mask_buff = ((stato.df_giacenza['zona'] == 'B'))
-            n_cod_buff = len(stato.df_giacenza[mask_buff])
-
-            if n_cod_staz < upperbound_s:
-                yield self.hold(db_mir500_mp_mag.sample())
-
-            elif self.dest == 'M' and n_cod_buff < upperbound_b:
-                #  yield self.hold(db_mir500_mp_mag.sample())
+            if stato.df_giacenza.loc[remove_cod, 'qta'] >= 90:
+                stato.df_giacenza.loc[remove_cod, 'zona'] = 'M'
+                # yield self.hold(db_mir500_mp_buff.sample())
                 yield self.hold(0)
-                if (remove_cod is not None
-                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'B'
-                    # yield self.hold(db_mir500_mp_buff.sample())
-                    yield self.hold(0)
-                elif (remove_cod is not None
-                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
-                    # yield self.hold(go to depall distribution)
-                    yield self.hold(0)
-                    while depallettizzatore.requesters().length() >= 1:
-                        yield self.standby()
-                    Depallettizzazione(mp=remove_cod)
-
-            elif self.dest == 'B':
-                #  yield self.hold(db_mir500_mp_buff.sample())
+            else:
+                stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
+                # yield self.hold(go to depall distribution)
                 yield self.hold(0)
-                if (remove_cod is not None
-                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'B'
-                    # yield self.hold(db_mir500_mp_buff.sample())
-                    yield self.hold(0)
-                elif (remove_cod is not None
-                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
-                    # yield self.hold(go to depall distribution)
-                    yield self.hold(0)
-                    while depallettizzatore.requesters().length() >= 1:
-                        yield self.standby()
-                    Depallettizzazione(mp=remove_cod)
+                while depallettizzatore.requesters().length() >= 1:
+                    yield self.standby()
+                Depallettizzazione(mp=remove_cod)
 
-            elif self.dest == 'M' and n_cod_buff >= upperbound_b:
-                #  yield self.hold(db_mir500_mp_mag.sample())
-                yield self.hold(0)
-                if (remove_cod is not None
-                        and stato.df_giacenza.loc[remove_cod, 'qta'] >= 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'M'
-                    #  yield self.hold(db_mir500_mp_mag.sample())
-                    yield self.hold(0)
-                elif (remove_cod is not None
-                      and stato.df_giacenza.loc[remove_cod, 'qta'] < 90):
-                    stato.df_giacenza.loc[remove_cod, 'zona'] = 'DEPALL'
-                    # yield self.hold(go to depall distribution)
-                    yield self.hold(0)
-                    while depallettizzatore.requesters().length() >= 1:
-                        yield self.standby()
-                    Depallettizzazione(mp=remove_cod)
+            # yield self.hold(db_mir500_mp_buff.sample())
+            yield self.hold(0)
 
             dict_picking[self.cod_pick][1] = 'S'
             dict_picking[self.cod_pick][2] = 'D'
@@ -645,8 +590,8 @@ class Estrusore(sim.Component):
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time)
                     self.dosaggio.fine_estrusione = env.now()
-                    print('estruso ', env.now(), str(
-                        self.n), self.dosaggio.cono.rfid)
+                    '''print('estruso ', env.now(), str(
+                        self.n), self.dosaggio.cono.rfid)'''
                     stato.check[self.n].append(self.dosaggio.estrusore)
                     self.dosaggio.activate()
                 break
@@ -743,7 +688,7 @@ env = sim.Environment()
 #  DosaggioGenerator()
 generator_auto = DosaggioGeneratorAuto()
 
-mir500_mp = sim.Resource('MIR500 MP', capacity=100)
+mir500_mp = sim.Resource('MIR500 MP', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=100)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')

@@ -71,3 +71,4 @@ for i in df_giacenza.index:
         df_giacenza.loc[i, 'time_pick'] = 1
     elif df_giacenza.loc[i, 'posizione'] < 4:
         df_giacenza.loc[i, 'time_pick'] = 0
+        df_giacenza.loc[i, 'zona'] = 'S'
