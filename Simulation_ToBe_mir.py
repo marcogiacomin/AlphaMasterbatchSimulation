@@ -379,13 +379,21 @@ class Staz_auto(sim.Component):
         return(dict_picking)
 
     def start_mission(self):
-        global dict_picking, n_mission500_mp
+        global stato, dict_picking, n_mission500_mp, n_mission100_sl
         for mp in dict_picking:
-            if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
-                dict_picking[mp][2] = 'R'  # mette stato "richiesto"
-                n_mission500_mp += 1
-                Mission500_mp(codice=mp, mission='picking')
-                break
+            if mp in stato.df_stock_mp.index:
+                if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
+                    dict_picking[mp][2] = 'R'  # mette stato "richiesto"
+                    n_mission500_mp += 1
+                    Mission500_mp(codice=mp, mission='picking')
+                    break
+            elif mp in stato.df_stock_sl.index:
+                print('quiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii')
+                if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
+                    dict_picking[mp][2] = 'R'  # mette stato "richiesto"
+                    n_mission100_sl += 1
+                    Mission100_sl(codice=mp)
+                    break
         return()
 
 #  qui devo inserire il discorso della pesata random
@@ -569,6 +577,48 @@ class Mission500_mp(sim.Component):
         yield self.passivate()
 
 
+class Mission100_sl(sim.Component):
+    def setup(self, codice):
+        global dict_picking
+        self.veicolo = 'MIR100 SL'
+        self.n_mission = n_mission100_sl
+        self.cod_pick = codice
+        self.peso = dict_picking[codice][0]
+        self.dest = dict_picking[codice][1]
+
+        self.richiesta = env.now()
+        self.partenza = 0
+        self.scarico = 0
+
+    def process(self):
+        global stato, dict_picking, n_mission100_sl
+
+        #  seize resource
+        yield self.request(mir100_sl)
+
+        #  individua i codici presenti nella staz_auto
+        mask_station = (stato.df_stock_sl['zona'] == 'S')
+        remove_cod = stato.df_stock_sl[mask_station].index[0]
+
+        #  inizia con la missione
+        dict_picking[self.cod_pick][1] = 'H'
+        self.partenza = env.now()
+        # yield self.hold(db_mir500_mp_buff.sample())
+        yield self.hold(0)
+        stato.df_stock_sl.loc[remove_cod, 'zona'] = 'M'
+        # yield self.hold(db_mir500_mp_buff.sample())
+        yield self.hold(0)
+        dict_picking[self.cod_pick][1] = 'S'
+        dict_picking[self.cod_pick][2] = 'D'
+        stato.df_stock_sl.loc[self.cod_pick, 'zona'] = 'S'
+        self.scarico = env.now()
+        stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
+            self, stato.dict_timestamp_picking)
+
+        self.release()
+        yield self.passivate()
+
+
 class Estrusore(sim.Component):
     def setup(self, n):
         self.n = n
@@ -675,6 +725,7 @@ class Depallettizzazione(sim.Component):
 # --------------------------------------------------
 h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
+n_mission100_sl = 0
 n_mission500_coni = 0
 
 start = datetime.now()
@@ -687,6 +738,7 @@ env = sim.Environment()
 generator_auto = DosaggioGeneratorAuto()
 
 mir500_mp = sim.Resource('MIR500 MP', capacity=1)
+mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
