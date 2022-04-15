@@ -567,16 +567,16 @@ class Mission500_mp(sim.Component):
                      * t_scarico)
                 dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
                 dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-                # yield self.hold(dtb.sample())
-                yield self.hold(0)
+                yield self.hold(dtb.sample())
+                #  yield self.hold(0)
                 stato.df_stock_mp.loc[remove_cod, 'zona'] = 'M'
             else:
                 stato.df_stock_mp.loc[remove_cod, 'zona'] = 'DEPALL'
                 t = (t_manovra + t_depall)
                 dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
                 dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-                # yield self.hold(dtb.sample())
-                yield self.hold(0)
+                yield self.hold(dtb.sample())
+                #  yield self.hold(0)
                 while depallettizzatore.requesters().length() >= 1:
                     yield self.standby()
                 Depallettizzazione(mp=remove_cod)
@@ -586,8 +586,8 @@ class Mission500_mp(sim.Component):
                  + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            # yield self.hold(dtb.sample())
-            yield self.hold(0)
+            yield self.hold(dtb.sample())
+            #  yield self.hold(0)
 
             dict_picking[self.cod_pick][1] = 'S'
             dict_picking[self.cod_pick][2] = 'D'
@@ -602,8 +602,8 @@ class Mission500_mp(sim.Component):
                  + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            # yield self.hold(dtb.sample())
-            yield self.hold(0)
+            yield self.hold(dtb.sample())
+            #  yield self.hold(0)
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'M'
 
         self.release()
@@ -770,7 +770,7 @@ env = sim.Environment()
 #  DosaggioGenerator()
 generator_auto = DosaggioGeneratorAuto()
 
-mir500_mp = sim.Resource('MIR500 MP', capacity=1)
+mir500_mp = sim.Resource('MIR500 MP', capacity=2)
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
