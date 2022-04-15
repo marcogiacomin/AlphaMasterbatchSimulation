@@ -187,7 +187,7 @@ class Dosaggio(sim.Component):
 
     #  Heuristc version of setup dosaggio
     def setup(self, staz_call):
-        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
+        global stato
         t = env.now()
 
         self.staz_call = staz_call
@@ -287,6 +287,7 @@ class Dosaggio(sim.Component):
 
     def process(self):
         global stato
+        #  stato.df_OP.loc[self.ID, 'stato'] = 'C'
         self.richiesta_cono = env.now()
 
         if self.staz_call.n in ['S1', 'S2']:
@@ -302,6 +303,7 @@ class Dosaggio(sim.Component):
             stato.elements += 1
             Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
                             dosaggio=self)
+
             for _ in range(len(self.dict_picking)):
                 self.start_mission()
             yield self.passivate()
@@ -773,7 +775,12 @@ env = sim.Environment()
 #  DosaggioGenerator()
 generator_auto = DosaggioGeneratorAuto()
 
-mir500_mp = sim.Resource('MIR500 MP', capacity=2)
+#  massimo numero di mir500 MP è 4
+#  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
+#  nessun cassone da rimuovere dalla stazione
+#  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
+mir500_mp = sim.Resource('MIR500 MP', capacity=4)
+
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
