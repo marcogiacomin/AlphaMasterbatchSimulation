@@ -91,13 +91,11 @@ class DosaggioGenerator(sim.Component):
 
 class DosaggioGeneratorAuto(sim.Component):
     def setup(self):
-        self.pull = False
+        self.pull = True
 
     def process(self):
-        yield self.hold(1)
         Dosaggio(staz_call=staz_auto)
-        yield self.hold(1)
-        Dosaggio(staz_call=staz_auto)
+        yield self.hold(10)  # se aspetto troppo poco so blocca il sistema
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if self.pull and 'D' in stato.df_coni['stato'].values:
@@ -209,7 +207,7 @@ class Dosaggio(sim.Component):
             best_dosaggio = df_coda.iloc[idx_que, :]
 
             self.parameters(best_dosaggio)
-            print('Setting up ', env.now(), self.estrusore)
+            print('Setting up ', env.now(), self.ID)
 
             for cono in obj_coni:
                 if cono.estrusore == self.estrusore and cono.stato == 'D':
@@ -508,15 +506,15 @@ class Mission500_coni(sim.Component):
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
             self.cono.zona = 'HANDLING'
-            #  yield self.hold(db_mir500_coni_pul.sample())
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_pul.sample())
+            #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
         elif self.mission == 'staz_auto dosaggio':
             self.cono.zona = 'HANDLING'
-            #  yield self.hold(db_mir500_coni_staz.sample())
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_staz.sample())
+            #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()

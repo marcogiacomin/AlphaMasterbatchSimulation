@@ -20,7 +20,7 @@ parameters = {'t_tool': 15,  # tempo robot cambio tool in secondi
               't_pig_f': 25,  # tempi robot per una palettata in secondi
               'tool': 1,  # 1 paletta piccola, 2 paletta grande
               'par_que': 10,  # quanti elementi mettere in coda nell'algoritmo
-              'max_cicli': 1,  # massimi cicli di utilizzo di un cono
+              'max_cicli': 15,  # massimi cicli di utilizzo di un cono
               }
 
 data = {'df_coni': pd.read_csv(r"C:\Users\HP\Desktop\mag_coni.csv",
