@@ -16,6 +16,12 @@ from sim_queue import (obj_buffer, que_staz_dos,
 
 from datetime import datetime
 
+#  intertempi tra due sezioni del magazzino
+t_carico = 0.5
+t_scarico = 0.3
+t_manovra = 1
+t_depall = 1
+#  ------------------
 
 # set distributions for service times
 d_interarrival = sim.External(stats.burr, c=3.145066166877723,
@@ -60,9 +66,6 @@ d_mir500_coni_staz = sim.Normal(
     mean=5, standard_deviation=0.5)  # go and back CT
 db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
                                   lowerbound=5, upperbound=15)
-
-d_mir500_mp_mag = sim.Normal(mean=3, standard_deviation=0.3)  # only go
-db_mir500_mp_mag = sim.Bounded(d_mir500_mp_mag, lowerbound=0.5, upperbound=6)
 #  --------------------
 
 
@@ -558,18 +561,32 @@ class Mission500_mp(sim.Component):
             self.partenza = env.now()
 
             if stato.df_stock_mp.loc[remove_cod, 'qta'] >= 90:
-                stato.df_stock_mp.loc[remove_cod, 'zona'] = 'M'
-                # yield self.hold(db_mir500_mp_buff.sample())
+                t = (stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_carico
+                     + t_manovra
+                     + stato.df_stock_mp.loc[self.cod_pick, 'sezione']
+                     * t_scarico)
+                dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
+                dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
+                # yield self.hold(dtb.sample())
                 yield self.hold(0)
+                stato.df_stock_mp.loc[remove_cod, 'zona'] = 'M'
             else:
                 stato.df_stock_mp.loc[remove_cod, 'zona'] = 'DEPALL'
-                # yield self.hold(go to depall distribution)
+                t = (t_manovra + t_depall)
+                dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
+                dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
+                # yield self.hold(dtb.sample())
                 yield self.hold(0)
                 while depallettizzatore.requesters().length() >= 1:
                     yield self.standby()
                 Depallettizzazione(mp=remove_cod)
 
-            # yield self.hold(db_mir500_mp_buff.sample())
+            t = (stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico
+                 + t_manovra
+                 + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico)
+            dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
+            dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
+            # yield self.hold(dtb.sample())
             yield self.hold(0)
 
             dict_picking[self.cod_pick][1] = 'S'

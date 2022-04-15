@@ -66,7 +66,7 @@ df_mp = pd.DataFrame.from_dict(dict_mp, orient='index', columns=['posizione'])
 df_mp.drop(index=df_mp.index[0], axis=0, inplace=True)
 
 df_mp['posizione'] = range(0, len(df_mp))
-df_mp['time_pick'] = None
+df_mp['sezione'] = None
 df_mp['qta'] = 500
 df_mp['zona'] = 'M'
 
@@ -76,11 +76,14 @@ dict_times = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
               6: 1, 7: 2, 8: 3, 9: 4, 10: 5}
 
 #  definizione del tempo di picking in funzione della posizione in magazzino
-for section, time in dict_times.items():
+for section in range(1, 11):
     for idx in df_mp.index:
         if (df_mp.loc[idx, 'posizione'] <= (section * containers_in_section)
                 and df_mp.loc[idx, 'posizione'] >= ((section - 1) * containers_in_section)):
-            df_mp.loc[idx, 'time_pick'] = time
+            if section <= 5:
+                df_mp.loc[idx, 'sezione'] = section
+            else:
+                df_mp.loc[idx, 'sezione'] = section - 5
         elif df_mp.loc[idx, 'posizione'] > section * containers_in_section:
             break
 
