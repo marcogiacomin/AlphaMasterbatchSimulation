@@ -95,12 +95,13 @@ class DosaggioGeneratorAuto(sim.Component):
 
     def process(self):
         Dosaggio(staz_call=staz_auto)
-        yield self.hold(10)  # se aspetto troppo poco so blocca il sistema
+        yield self.wait((dos_in_que, True, 1))
+        # se aspetto troppo poco so blocca il sistema
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if self.pull and 'D' in stato.df_coni['stato'].values:
+            if 'D' in stato.df_coni['stato'].values:
                 Dosaggio(staz_call=staz_auto)
-                self.pull = False
+                yield self.wait((dos_done, True, 1))
             else:
                 yield self.standby()
 
@@ -312,11 +313,13 @@ class Dosaggio(sim.Component):
             yield self.passivate()
 
         self.enter(self.staz_call.que)
+        dos_in_que.trigger(max=1)
         self.cono.zona = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
             self.staz_call.activate()
         yield self.passivate()
+        dos_done.trigger(max=1)
         #  ------------------
 
         #  ingresso nel miscelatore
@@ -774,6 +777,10 @@ print('PARTENZA ', start)
 
 env = sim.Environment()
 
+# states
+dos_in_que = sim.State("dos_in_que")
+dos_done = sim.State('dos_done')
+#  ----------
 
 #  DosaggioGenerator()
 generator_auto = DosaggioGeneratorAuto()
