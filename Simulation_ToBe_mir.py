@@ -66,6 +66,11 @@ d_mir500_coni_staz = sim.Normal(
     mean=5, standard_deviation=0.5)  # go and back CT
 db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
                                   lowerbound=5, upperbound=15)
+
+d_mir100_sl = sim.Normal(
+    mean=3, standard_deviation=0.4)  # go and back CT
+db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
+                           lowerbound=2, upperbound=8)
 #  --------------------
 
 
@@ -641,11 +646,11 @@ class Mission100_sl(sim.Component):
         #  inizia con la missione
         self.dosaggio.dict_picking[self.cod_pick][1] = 'H'
         self.partenza = env.now()
-        # yield self.hold(db_mir500_mp_buff.sample())
-        yield self.hold(0)
+        yield self.hold(db_mir100_sl.sample())
+        #  yield self.hold(0)
         stato.df_stock_sl.loc[remove_cod, 'zona'] = 'M'
-        # yield self.hold(db_mir500_mp_buff.sample())
-        yield self.hold(0)
+        yield self.hold(db_mir100_sl.sample())
+        #  yield self.hold(0)
         self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
         self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
         stato.df_stock_sl.loc[self.cod_pick, 'zona'] = 'S'
