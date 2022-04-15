@@ -130,6 +130,8 @@ class Dosaggio(sim.Component):
             else:
                 break
 
+        self.dict_picking = self.picking_list()
+
         self.richiesta_cono = 0
         self.inizio_dosatura = 0
         self.fine_dosatura = 0
@@ -231,6 +233,58 @@ class Dosaggio(sim.Component):
                 idx_que += 1
                 print('Cono non trovato, skip to', idx_que)
 
+    def picking_list(self):
+        global stato
+        dict_picking = {}
+        idx = 0
+        for codice in self.materie_prime:
+            if codice in stato.df_stock_mp.index:
+                if dict_picking.get(codice) is None:
+                    dict_picking[codice] = []
+                    dict_picking[codice].append(self.peso_mp[idx])
+                    dict_picking[codice].append(
+                        stato.df_stock_mp.loc[codice, 'zona'])
+                    if stato.df_stock_mp.loc[codice, 'zona'] == 'S':
+                        dict_picking[codice].append('D')
+                    else:
+                        dict_picking[codice].append('O')
+                    idx += 1
+                else:
+                    dict_picking[codice][0] += self.peso_mp[idx]
+                    idx += 1
+            elif codice in stato.df_stock_sl.index:
+                if dict_picking.get(codice) is None:
+                    dict_picking[codice] = []
+                    dict_picking[codice].append(self.peso_mp[idx])
+                    dict_picking[codice].append(
+                        stato.df_stock_sl.loc[codice, 'zona'])
+                    if stato.df_stock_sl.loc[codice, 'zona'] == 'S':
+                        dict_picking[codice].append('D')
+                    else:
+                        dict_picking[codice].append('O')
+                    idx += 1
+                else:
+                    dict_picking[codice][0] += self.peso_mp[idx]
+                    idx += 1
+        return(dict_picking)
+
+    def start_mission(self):
+        global stato, n_mission500_mp, n_mission100_sl
+        for mp in self.dict_picking:
+            if mp in stato.df_stock_mp.index:
+                if self.dict_picking[mp][1] != 'S' and self.dict_picking[mp][2] == 'O':
+                    self.dict_picking[mp][2] = 'R'  # mette stato "richiesto"
+                    n_mission500_mp += 1
+                    Mission500_mp(codice=mp, mission='picking', dosaggio=self)
+                    break
+            elif mp in stato.df_stock_sl.index:
+                if self.dict_picking[mp][1] != 'S' and self.dict_picking[mp][2] == 'O':
+                    self.dict_picking[mp][2] = 'R'  # mette stato "richiesto"
+                    n_mission100_sl += 1
+                    Mission100_sl(codice=mp, dosaggio=self)
+                    break
+        return()
+
     def process(self):
         global stato
         self.richiesta_cono = env.now()
@@ -248,6 +302,8 @@ class Dosaggio(sim.Component):
             stato.elements += 1
             Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
                             dosaggio=self)
+            for _ in range(len(self.dict_picking)):
+                self.start_mission()
             yield self.passivate()
 
         self.enter(self.staz_call.que)
@@ -330,7 +386,7 @@ class Stazione(sim.Component):
             self.que = que_staz_dos_2
 
     def process(self):
-        global stato, dict_picking
+        global stato
         while True:
             if len(self.que) == 0:
                 yield self.passivate()
@@ -358,65 +414,12 @@ class Staz_auto(sim.Component):
         self.que = que_staz_dos
         self.retry_call = False
 
-    def picking_list(self):
-        global stato
-        dict_picking = {}
-        idx = 0
-        for codice in self.dosaggio.materie_prime:
-            if codice in stato.df_stock_mp.index:
-                if dict_picking.get(codice) is None:
-                    dict_picking[codice] = []
-                    dict_picking[codice].append(self.dosaggio.peso_mp[idx])
-                    dict_picking[codice].append(
-                        stato.df_stock_mp.loc[codice, 'zona'])
-                    if stato.df_stock_mp.loc[codice, 'zona'] == 'S':
-                        dict_picking[codice].append('D')
-                    else:
-                        dict_picking[codice].append('O')
-                    idx += 1
-                else:
-                    dict_picking[codice][0] += self.dosaggio.peso_mp[idx]
-                    idx += 1
-            elif codice in stato.df_stock_sl.index:
-                if dict_picking.get(codice) is None:
-                    dict_picking[codice] = []
-                    dict_picking[codice].append(self.dosaggio.peso_mp[idx])
-                    dict_picking[codice].append(
-                        stato.df_stock_sl.loc[codice, 'zona'])
-                    if stato.df_stock_sl.loc[codice, 'zona'] == 'S':
-                        dict_picking[codice].append('D')
-                    else:
-                        dict_picking[codice].append('O')
-                    idx += 1
-                else:
-                    dict_picking[codice][0] += self.dosaggio.peso_mp[idx]
-                    idx += 1
-        return(dict_picking)
-
-    def start_mission(self):
-        global stato, dict_picking, n_mission500_mp, n_mission100_sl
-        for mp in dict_picking:
-            if mp in stato.df_stock_mp.index:
-                if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
-                    dict_picking[mp][2] = 'R'  # mette stato "richiesto"
-                    n_mission500_mp += 1
-                    Mission500_mp(codice=mp, mission='picking')
-                    break
-            elif mp in stato.df_stock_sl.index:
-                if dict_picking[mp][1] != 'S' and dict_picking[mp][2] == 'O':
-                    dict_picking[mp][2] = 'R'  # mette stato "richiesto"
-                    n_mission100_sl += 1
-                    Mission100_sl(codice=mp)
-                    break
-        return()
-
 #  qui devo inserire il discorso della pesata random
     def weigh_and_pull(self):
-        global stato, dict_picking
+        global stato
         t = 0
-        for mp, car in dict_picking.items():
+        for mp, car in self.dosaggio.dict_picking.items():
             if car[1] == 'S' and car[2] == 'D':
-                self.start_mission()
                 if car[0] <= 2.5:
                     t += stato.t_tool/60
                     t += ((math.floor(car[0] / 1) - 1)
@@ -434,16 +437,14 @@ class Staz_auto(sim.Component):
         return(t, mp)
 
     def process(self):
-        global stato, dict_picking
+        global stato
         while True:
             while len(que_staz_dos) == 0:
                 yield self.passivate()
             self.dosaggio = que_staz_dos.pop()
             self.dosaggio.cono.zona = 'DOS ' + self.n
             #  crea la picking list
-            dict_picking = self.picking_list()
             self.dosaggio.inizio_dosatura = env.now()
-            self.start_mission()
 
             #  dosa le cose una per volta
             #  chiama la missione per MIR
@@ -453,15 +454,16 @@ class Staz_auto(sim.Component):
                 t_pes = tupla[0]
                 mp = tupla[1]
                 if t_pes != 0:
-                    dict_picking[mp][2] = 'WIP'
+                    self.dosaggio.dict_picking[mp][2] = 'WIP'
 
                     #  rimuove dalla giacenza i kg di mp usata
                     if mp in stato.df_stock_mp.index:
-                        stato.df_stock_mp.loc[mp, 'qta'] -= dict_picking[mp][0]
+                        stato.df_stock_mp.loc[mp,
+                                              'qta'] -= self.dosaggio.dict_picking[mp][0]
 
                     yield self.hold(t_pes)
-                    del dict_picking[mp]
-                    if len(dict_picking) == 0:
+                    del self.dosaggio.dict_picking[mp]
+                    if len(self.dosaggio.dict_picking) == 0:
                         wait = False
                 else:
                     yield self.standby()
@@ -518,21 +520,22 @@ class Mission500_coni(sim.Component):
 
 
 class Mission500_mp(sim.Component):
-    def setup(self, codice, mission):
-        global dict_picking, n_mission500_mp
+    def setup(self, codice, mission, dosaggio=None):
+        global n_mission500_mp
         self.veicolo = 'MIR500 MP'
         self.n_mission = n_mission500_mp
         self.cod_pick = codice
         self.mission = mission
         if self.mission == 'picking':
-            self.peso = dict_picking[codice][0]
-            self.dest = dict_picking[codice][1]
+            self.dosaggio = dosaggio
+            self.peso = self.dosaggio.dict_picking[codice][0]
+            self.dest = self.dosaggio.dict_picking[codice][1]
             self.richiesta = env.now()
             self.partenza = 0
             self.scarico = 0
 
     def process(self):
-        global stato, dict_picking, n_mission500_mp
+        global stato, n_mission500_mp
 
         #  seize resource
         yield self.request(mir500_mp)
@@ -547,7 +550,7 @@ class Mission500_mp(sim.Component):
             go = False
             while not go:
                 for c in cod_staz:
-                    if c not in dict_picking.keys():
+                    if c not in self.dosaggio.dict_picking.keys():
                         remove_cod = c
                         go = True
                         stato.df_stock_mp.loc[remove_cod,
@@ -557,7 +560,7 @@ class Mission500_mp(sim.Component):
                         yield self.standby()
 
             #  inizia con la missione
-            dict_picking[self.cod_pick][1] = 'H'
+            self.dosaggio.dict_picking[self.cod_pick][1] = 'H'
             self.partenza = env.now()
 
             if stato.df_stock_mp.loc[remove_cod, 'qta'] >= 90:
@@ -589,8 +592,8 @@ class Mission500_mp(sim.Component):
             yield self.hold(dtb.sample())
             #  yield self.hold(0)
 
-            dict_picking[self.cod_pick][1] = 'S'
-            dict_picking[self.cod_pick][2] = 'D'
+            self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
+            self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'S'
             self.scarico = env.now()
             stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
@@ -611,20 +614,20 @@ class Mission500_mp(sim.Component):
 
 
 class Mission100_sl(sim.Component):
-    def setup(self, codice):
-        global dict_picking
+    def setup(self, codice, dosaggio):
         self.veicolo = 'MIR100 SL'
         self.n_mission = n_mission100_sl
         self.cod_pick = codice
-        self.peso = dict_picking[codice][0]
-        self.dest = dict_picking[codice][1]
+        self.dosaggio = dosaggio
+        self.peso = self.dosaggio.dict_picking[codice][0]
+        self.dest = self.dosaggio.dict_picking[codice][1]
 
         self.richiesta = env.now()
         self.partenza = 0
         self.scarico = 0
 
     def process(self):
-        global stato, dict_picking, n_mission100_sl
+        global stato, n_mission100_sl
 
         #  seize resource
         yield self.request(mir100_sl)
@@ -634,15 +637,15 @@ class Mission100_sl(sim.Component):
         remove_cod = stato.df_stock_sl[mask_station].index[0]
 
         #  inizia con la missione
-        dict_picking[self.cod_pick][1] = 'H'
+        self.dosaggio.dict_picking[self.cod_pick][1] = 'H'
         self.partenza = env.now()
         # yield self.hold(db_mir500_mp_buff.sample())
         yield self.hold(0)
         stato.df_stock_sl.loc[remove_cod, 'zona'] = 'M'
         # yield self.hold(db_mir500_mp_buff.sample())
         yield self.hold(0)
-        dict_picking[self.cod_pick][1] = 'S'
-        dict_picking[self.cod_pick][2] = 'D'
+        self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
+        self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
         stato.df_stock_sl.loc[self.cod_pick, 'zona'] = 'S'
         self.scarico = env.now()
         stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
