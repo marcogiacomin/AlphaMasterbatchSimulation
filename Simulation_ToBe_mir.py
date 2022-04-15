@@ -597,8 +597,12 @@ class Mission500_mp(sim.Component):
                 self, stato.dict_timestamp_picking)
 
         elif self.mission == 'recupero_depall':
-            #  da differenziare le varie casistiche
-            # yield self.hold(go to depall distribution)
+            t = (t_depall + t_manovra
+                 + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_carico
+                 + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico)
+            dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
+            dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
+            # yield self.hold(dtb.sample())
             yield self.hold(0)
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'M'
 
