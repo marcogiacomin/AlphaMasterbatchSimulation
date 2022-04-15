@@ -72,8 +72,6 @@ df_mp['zona'] = 'M'
 
 sections = 10
 containers_in_section = len(df_mp) / sections
-dict_times = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
-              6: 1, 7: 2, 8: 3, 9: 4, 10: 5}
 
 #  definizione del tempo di picking in funzione della posizione in magazzino
 for section in range(1, 11):

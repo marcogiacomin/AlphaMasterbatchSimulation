@@ -779,7 +779,7 @@ generator_auto = DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=4)
+mir500_mp = sim.Resource('MIR500 MP', capacity=3)
 
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
@@ -860,6 +860,9 @@ sat_hand_2 = handlingest.occupancy.mean()
 sat_staz_1 = stazione1.status.print_histogram(values=True, as_str=True)
 sat_staz_2 = stazione2.status.print_histogram(values=True, as_str=True)
 sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
+sat_mir500_mp = mir500_mp.occupancy.mean()
+sat_mir100_sl = mir100_sl.occupancy.mean()
+sat_mir500_coni = mir500_coni.occupancy.mean()
 
 sat1 = E1.status.print_histogram(values=True, as_str=True)
 sat2 = E2.status.print_histogram(values=True, as_str=True)
