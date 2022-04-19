@@ -777,10 +777,10 @@ print('PARTENZA ', start)
 
 env = sim.Environment()
 
-# states
-dos_in_que = sim.State("dos_in_que")
+#  states
+dos_in_que = sim.State('dos_in_que')
 dos_done = sim.State('dos_done')
-#  ----------
+#  ------------
 
 #  DosaggioGenerator()
 generator_auto = DosaggioGeneratorAuto()
