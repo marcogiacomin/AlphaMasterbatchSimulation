@@ -94,9 +94,6 @@ class DosaggioGeneratorAuto(sim.Component):
         self.pull = True
 
     def process(self):
-        Dosaggio(staz_call=staz_auto)
-        yield self.wait((dos_in_que, True, 1))
-        # se aspetto troppo poco so blocca il sistema
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
@@ -516,8 +513,8 @@ class Mission500_coni(sim.Component):
             self.pulizia.activate()
         elif self.mission == 'staz_auto dosaggio':
             self.cono.zona = 'HANDLING'
-            yield self.hold(db_mir500_coni_staz.sample())
-            #  yield self.hold(0)
+            # yield self.hold(db_mir500_coni_staz.sample())
+            yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
@@ -552,7 +549,8 @@ class Mission500_mp(sim.Component):
             #  individua i codici presenti nella staz_auto
             mask_station = (stato.df_stock_mp['zona'] == 'S')
             cod_staz = list(stato.df_stock_mp[mask_station].index)
-
+            #  print(cod_staz)
+            # print(self.dosaggio.dict_picking.keys())
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
             go = False
@@ -572,9 +570,9 @@ class Mission500_mp(sim.Component):
             self.partenza = env.now()
 
             if stato.df_stock_mp.loc[remove_cod, 'qta'] >= 90:
-                t = (stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_carico
+                t = (stato.df_stock_mp.loc[remove_cod, 'sezione'] * t_carico
                      + t_manovra
-                     + stato.df_stock_mp.loc[self.cod_pick, 'sezione']
+                     + stato.df_stock_mp.loc[remove_cod, 'sezione']
                      * t_scarico)
                 dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
                 dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
@@ -767,7 +765,7 @@ class Depallettizzazione(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 100  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission100_sl = 0
 n_mission500_coni = 0
@@ -789,7 +787,7 @@ generator_auto = DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=1)
+mir500_mp = sim.Resource('MIR500 MP', capacity=2)
 
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
