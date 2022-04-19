@@ -423,7 +423,7 @@ class Staz_auto(sim.Component):
         self.retry_call = False
 
 #  qui devo inserire il discorso della pesata random
-    def weigh_and_pull(self):
+    def weigh(self):
         global stato
         t = 0
         for mp, car in self.dosaggio.dict_picking.items():
@@ -458,7 +458,7 @@ class Staz_auto(sim.Component):
             #  chiama la missione per MIR
             wait = True
             while wait:
-                tupla = self.weigh_and_pull()
+                tupla = self.weigh()
                 t_pes = tupla[0]
                 mp = tupla[1]
                 if t_pes != 0:
@@ -789,7 +789,7 @@ generator_auto = DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=3)
+mir500_mp = sim.Resource('MIR500 MP', capacity=1)
 
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
