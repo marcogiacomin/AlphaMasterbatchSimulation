@@ -17,10 +17,10 @@ from sim_queue import (obj_buffer, que_staz_dos,
 from datetime import datetime
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5/2
-t_scarico = 0.3/2
-t_manovra = 1/2
-t_depall = 1/2
+t_carico = 0.5
+t_scarico = 0.3
+t_manovra = 1
+t_depall = 1
 #  ------------------
 
 # set distributions for service times
@@ -205,7 +205,7 @@ class Dosaggio(sim.Component):
             best_dosaggio = df_coda.iloc[idx_que, :]
 
             self.parameters(best_dosaggio)
-            #  print('Setting up ', env.now(), self.ID)
+            print('Setting up ', env.now(), self.ID)
 
             for cono in obj_coni:
                 if cono.estrusore == self.estrusore and cono.stato == 'D':
@@ -273,18 +273,13 @@ class Dosaggio(sim.Component):
         global stato, n_mission500_mp, n_mission100_sl
         for mp in self.dict_picking:
             if mp in stato.df_stock_mp.index:
-                if (self.dict_picking[mp][1] != 'S'
-                        and self.dict_picking[mp][2] == 'O'
-                        and stato.df_stock_mp.loc[mp, 'zona'] == 'M'):
-                    # mette stato "richiesto"
-                    self.dict_picking[mp][2] = 'R'
+                if self.dict_picking[mp][1] != 'S' and self.dict_picking[mp][2] == 'O':
+                    self.dict_picking[mp][2] = 'R'  # mette stato "richiesto"
                     n_mission500_mp += 1
                     Mission500_mp(codice=mp, mission='picking', dosaggio=self)
                     break
             elif mp in stato.df_stock_sl.index:
-                if (self.dict_picking[mp][1] != 'S'
-                        and self.dict_picking[mp][2] == 'O'
-                        and stato.df_stock_sl.loc[mp, 'zona'] == 'M'):
+                if self.dict_picking[mp][1] != 'S' and self.dict_picking[mp][2] == 'O':
                     self.dict_picking[mp][2] = 'R'  # mette stato "richiesto"
                     n_mission100_sl += 1
                     Mission100_sl(codice=mp, dosaggio=self)
@@ -545,7 +540,7 @@ class Mission500_mp(sim.Component):
             self.scarico = 0
 
     def process(self):
-        global stato, n_mission500_mp, totale_stazione
+        global stato, n_mission500_mp
 
         #  seize resource
         yield self.request(mir500_mp)
@@ -554,15 +549,13 @@ class Mission500_mp(sim.Component):
             #  individua i codici presenti nella staz_auto
             mask_station = (stato.df_stock_mp['zona'] == 'S')
             cod_staz = list(stato.df_stock_mp[mask_station].index)
-            #  print(cod_staz)
-            # print(self.dosaggio.dict_picking.keys())
+
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
             go = False
             while not go:
                 for c in cod_staz:
-                    if (c not in self.dosaggio.dict_picking.keys()
-                            and stato.df_stock_mp.loc[c, 'zona'] != 'Handling'):
+                    if c not in self.dosaggio.dict_picking.keys():
                         remove_cod = c
                         go = True
                         stato.df_stock_mp.loc[remove_cod,
@@ -604,10 +597,6 @@ class Mission500_mp(sim.Component):
             yield self.hold(dtb.sample())
             #  yield self.hold(0)
 
-            mask_station = (stato.df_stock_mp['zona'] == 'S')
-            cod_staz = list(stato.df_stock_mp[mask_station].index)
-            print(len(cod_staz), self.n_mission, remove_cod, self.cod_pick)
-
             self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
             self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'S'
@@ -621,8 +610,8 @@ class Mission500_mp(sim.Component):
                  + stato.df_stock_mp.loc[self.cod_pick, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            #  yield self.hold(dtb.sample())
-            yield self.hold(0)
+            yield self.hold(dtb.sample())
+            #  yield self.hold(0)
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'M'
 
         self.release()
@@ -775,7 +764,7 @@ class Depallettizzazione(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 100  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission100_sl = 0
 n_mission500_coni = 0
@@ -797,7 +786,7 @@ generator_auto = DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=4)
+mir500_mp = sim.Resource('MIR500 MP', capacity=2)
 
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
@@ -892,5 +881,4 @@ sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
 
-#  que_staz_dos.print_statistics()
 #  que_staz_dos.print_statistics()
