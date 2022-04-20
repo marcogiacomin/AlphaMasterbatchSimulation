@@ -1,26 +1,23 @@
 import module_class_cono
 import module_stats
-import Solver_sequencing
 import module_que_by_est
 
 import math
 import pandas as pd
 import salabim as sim
 from scipy import stats
-from random import random
 
 from module_class_cono import obj_coni
 from class_stato import stato
-from sim_queue import (obj_buffer, que_staz_dos,
-                       que_staz_dos_1, que_staz_dos_2)
+from sim_queue import (obj_buffer, que_staz_dos)
 
 from datetime import datetime
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5/2
-t_scarico = 0.3/2
-t_manovra = 1/2
-t_depall = 1/2
+t_carico = 0.5
+t_scarico = 0.3
+t_manovra = 1
+t_depall = 1
 #  ------------------
 
 # set distributions for service times
@@ -74,21 +71,6 @@ db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
 #  --------------------
 
 
-class DosaggioGenerator(sim.Component):
-    def process(self):
-        while True:
-            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if 'D' in stato.df_coni['stato'].values:
-                if random() <= 0.5:
-                    s = stazione1
-                else:
-                    s = stazione2
-                Dosaggio(staz_call=s)
-                yield self.hold(db_interarrival.sample())
-            else:
-                yield self.standby()
-
-
 class DosaggioGeneratorAuto(sim.Component):
     def setup(self):
         self.pull = True
@@ -96,7 +78,7 @@ class DosaggioGeneratorAuto(sim.Component):
     def process(self):
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if 'D' in stato.df_coni['stato'].values:
+            if ('D' in stato.df_coni['stato'].values):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((dos_done, True, 1))
             else:
@@ -160,31 +142,6 @@ class Dosaggio(sim.Component):
         stato.dict_elements['time'].append(env.now()/60)
         stato.dict_elements['elements'].append(stato.elements)
         return()
-
-    #  Operations research version of setup
-    '''def setup(self, staz_call):
-        global stato, obj_coni
-        t = env.now()
-
-        self.staz_call = staz_call
-
-        dos_con = Solver_sequencing.best_choice(t, stato)
-        id_dos = dos_con[0]
-        container = dos_con[1]
-
-        best_dosaggio = stato.df_OP.loc[id_dos, :]
-        self.parameters(best_dosaggio)
-        stato.df_OP.loc[[self.ID], 'stato'] = 'C'
-        print('Setting up {} '.format(self.staz_call.n),
-              env.now(), self.estrusore, self.ID)
-
-        for c in obj_coni:
-            if c.rfid == container:
-                self.cono = c
-        self.cono.stato = 'A'
-        self.cono.estrusore = self.estrusore
-        self.cono.color = self.color
-        self.cono.valcrom = self.valcrom'''
 
     #  Heuristc version of setup dosaggio
     def setup(self, staz_call):
@@ -296,26 +253,15 @@ class Dosaggio(sim.Component):
         #  stato.df_OP.loc[self.ID, 'stato'] = 'C'
         self.richiesta_cono = env.now()
 
-        if self.staz_call.n in ['S1', 'S2']:
-            yield self.request(handlingpes)
-            self.cono.zona = 'GUA_PES'
-            stato.elements += 1
-            stato.dict_elements['time'].append(env.now()/60)
-            stato.dict_elements['elements'].append(stato.elements)
-            yield self.hold(db_handlingpes.sample())
-            self.release()
+        stato.elements += 1
+        Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
+                        dosaggio=self)
 
-        elif self.staz_call.n == 'SA':
-            stato.elements += 1
-            Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
-                            dosaggio=self)
-
-            for _ in range(len(self.dict_picking)):
-                self.start_mission()
-            yield self.passivate()
+        for _ in range(len(self.dict_picking)):
+            self.start_mission()
+        yield self.passivate()
 
         self.enter(self.staz_call.que)
-        dos_in_que.trigger(max=1)
         self.cono.zona = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         if self.staz_call.ispassive():
@@ -385,37 +331,6 @@ class Dosaggio(sim.Component):
         stato.df_OP.loc[[self.ID], 'stato'] = 'T'
         yield self.passivate()
         #  --------------------
-
-
-class Stazione(sim.Component):
-    def setup(self, n):
-        self.n = n
-        if n == 'S1':
-            self.que = que_staz_dos_1
-        elif n == 'S2':
-            self.que = que_staz_dos_2
-
-    def process(self):
-        global stato
-        while True:
-            if len(self.que) == 0:
-                yield self.passivate()
-            self.dosaggio = self.que.pop()
-            self.dosaggio.cono.zona = 'DOS ' + self.n
-            self.dosaggio.inizio_dosatura = env.now()
-            yield self.hold(db_pesatura.sample())
-            self.dosaggio.fine_dosatura = env.now()
-            '''print('Dosato {} '.format(self.n), env.now(), str(
-                self.dosaggio.estrusore), self.dosaggio.cono.rfid)'''
-
-            stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
-                                                        env.now(),
-                                                        self.dosaggio.kg,
-                                                        'staz.dosaggio')
-            # attiva solo se la coda del miscelatore è vuota
-            while miscelatore.claimers().length() >= 2:
-                yield self.standby()
-            self.dosaggio.activate()
 
 
 class Staz_auto(sim.Component):
@@ -518,8 +433,8 @@ class Mission500_coni(sim.Component):
             self.pulizia.activate()
         elif self.mission == 'staz_auto dosaggio':
             self.cono.zona = 'HANDLING'
-            # yield self.hold(db_mir500_coni_staz.sample())
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_staz.sample())
+            #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
@@ -551,18 +466,18 @@ class Mission500_mp(sim.Component):
         yield self.request(mir500_mp)
 
         if self.mission == 'picking':
-            #  individua i codici presenti nella staz_auto
-            mask_station = (stato.df_stock_mp['zona'] == 'S')
-            cod_staz = list(stato.df_stock_mp[mask_station].index)
             #  print(cod_staz)
             # print(self.dosaggio.dict_picking.keys())
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
             go = False
             while not go:
+                #  individua i codici presenti nella staz_auto
+                mask_station = (stato.df_stock_mp['zona'] == 'S')
+                cod_staz = list(stato.df_stock_mp[mask_station].index)
                 for c in cod_staz:
                     if (c not in self.dosaggio.dict_picking.keys()
-                            and stato.df_stock_mp.loc[c, 'zona'] != 'Handling'):
+                            and stato.df_stock_mp.loc[c, 'zona'] == 'S'):
                         remove_cod = c
                         go = True
                         stato.df_stock_mp.loc[remove_cod,
@@ -606,7 +521,8 @@ class Mission500_mp(sim.Component):
 
             mask_station = (stato.df_stock_mp['zona'] == 'S')
             cod_staz = list(stato.df_stock_mp[mask_station].index)
-            print(len(cod_staz), self.n_mission, remove_cod, self.cod_pick)
+            print(len(cod_staz), self.n_mission, remove_cod, self.cod_pick,
+                  env.now(), datetime.now())
 
             self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
             self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
@@ -786,7 +702,6 @@ print('PARTENZA ', start)
 env = sim.Environment()
 
 #  states
-dos_in_que = sim.State('dos_in_que')
 dos_done = sim.State('dos_done')
 #  ------------
 
@@ -798,15 +713,10 @@ generator_auto = DosaggioGeneratorAuto()
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
 mir500_mp = sim.Resource('MIR500 MP', capacity=4)
-
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
-handlingpes = sim.Resource('Gualchierani_pre_pes')
-
 staz_auto = Staz_auto(n='SA')
-stazione1 = Stazione(n='S1')
-stazione2 = Stazione(n='S2')
 
 miscelatore = sim.Resource('Miscelatore', capacity=2)
 
@@ -872,11 +782,8 @@ tot_ques = len(handlingest.claimers()
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 
 # STATISTICHE SULLA SATURAZIONE DEI SERVER
-sat_hand_1 = handlingpes.occupancy.mean()
 sat_misc = miscelatore.occupancy.mean()
 sat_hand_2 = handlingest.occupancy.mean()
-sat_staz_1 = stazione1.status.print_histogram(values=True, as_str=True)
-sat_staz_2 = stazione2.status.print_histogram(values=True, as_str=True)
 sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
 sat_mir500_mp = mir500_mp.occupancy.mean()
 sat_mir100_sl = mir100_sl.occupancy.mean()
@@ -893,4 +800,7 @@ sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
 
 #  que_staz_dos.print_statistics()
+
+#  que_staz_dos.print_statistics()
+
 #  que_staz_dos.print_statistics()
