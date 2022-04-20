@@ -41,7 +41,6 @@ def aggiorna_timestamp_picking(self, dict_timestamp_picking):
     dict_timestamp_picking['veicolo'].append(self.veicolo)
     dict_timestamp_picking['n_mission'].append(self.n_mission)
     dict_timestamp_picking['codice'].append(self.cod_pick)
-    dict_timestamp_picking['destinazione'].append(self.dest)
     dict_timestamp_picking['richiesta'].append(
         np.round(self.richiesta, 2))
     dict_timestamp_picking['partenza'].append(np.round(self.partenza, 2))

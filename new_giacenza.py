@@ -89,7 +89,7 @@ for section in range(1, 11):
 i = 0
 for mp in df_mp.index:
     df_mp.loc[mp, 'zona'] = 'S'
-    df_mp.loc[mp, 'stato'] = 'D'
+    df_mp.loc[mp, 'stato'] = 'UD'
     i += 1
     if i == 4:
         break
@@ -101,6 +101,6 @@ df_sl['qta'] = 100
 df_sl['zona'] = 'M'
 df_sl['stato'] = None
 df_sl.iloc[0, 2] = 'S'
-df_sl.iloc[0, 3] = 'D'
+df_sl.iloc[0, 3] = 'UD'
 
 # ----------------------

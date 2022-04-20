@@ -72,7 +72,6 @@ variables = {'elements': 0,  # entità presenti nel sistema all'istante t
              'dict_timestamp_picking': {'veicolo': [],
                                         'n_mission': [],
                                         'codice': [],
-                                        'destinazione': [],
                                         'richiesta': [],
                                         'partenza': [],
                                         'scarico': [], },
