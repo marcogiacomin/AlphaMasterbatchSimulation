@@ -79,7 +79,7 @@ class DosaggioGeneratorAuto(sim.Component):
             if 'D' in stato.df_coni['stato'].values and opened < 2:
                 Dosaggio(staz_call=staz_auto)
                 if opened == 0:
-                    yield self.hold(10)
+                    yield self.hold(5)
                 opened += 1
             else:
                 yield self.wait((dos_done, True, 1))
@@ -96,25 +96,15 @@ class Dosaggio(sim.Component):
         self.TE = best_dosaggio.loc['TE']
         self.color = best_dosaggio.loc['color']
         self.valcrom = best_dosaggio.loc['valcrom']
-        self.materie_prime = []
-        self.peso_mp = []
+        self.materie_prime = {}
         self.cono = None
 
-        for i in [('cod.i' + str(n)) for n in range(1, 16)]:
-            x = best_dosaggio.loc[i]
+        for i in [('cod.i' + str(n), 'kg.i' + str(n)) for n in range(1, 16)]:
+            x = best_dosaggio.loc[i[0]]
             if x != '':
-                self.materie_prime.append(x)
+                self.materie_prime[x] = best_dosaggio.loc[i[1]]
             else:
                 break
-
-        for i in [('kg.i' + str(n)) for n in range(1, 16)]:
-            x = best_dosaggio.loc[i]
-            if x != '':
-                self.peso_mp.append(x)
-            else:
-                break
-
-        self.dict_picking = self.picking_list()
 
         self.richiesta_cono = 0
         self.inizio_dosatura = 0
@@ -192,61 +182,14 @@ class Dosaggio(sim.Component):
                 idx_que += 1
                 print('Cono non trovato, skip to', idx_que)
 
-    def picking_list(self):
-        global stato
-        dict_picking = {}
-        idx = 0
-        for codice in self.materie_prime:
-            if codice in stato.df_stock_mp.index:
-                if dict_picking.get(codice) is None:
-                    dict_picking[codice] = []
-                    dict_picking[codice].append(self.peso_mp[idx])
-                    dict_picking[codice].append(
-                        stato.df_stock_mp.loc[codice, 'zona'])
-                    if stato.df_stock_mp.loc[codice, 'zona'] == 'S':
-                        dict_picking[codice].append('D')
-                    else:
-                        dict_picking[codice].append('O')
-                    idx += 1
-                else:
-                    dict_picking[codice][0] += self.peso_mp[idx]
-                    idx += 1
-            elif codice in stato.df_stock_sl.index:
-                if dict_picking.get(codice) is None:
-                    dict_picking[codice] = []
-                    dict_picking[codice].append(self.peso_mp[idx])
-                    dict_picking[codice].append(
-                        stato.df_stock_sl.loc[codice, 'zona'])
-                    if stato.df_stock_sl.loc[codice, 'zona'] == 'S':
-                        dict_picking[codice].append('D')
-                    else:
-                        dict_picking[codice].append('O')
-                    idx += 1
-                else:
-                    dict_picking[codice][0] += self.peso_mp[idx]
-                    idx += 1
-        return(dict_picking)
-
-    def start_mission(self):
-        global stato, n_mission500_mp, n_mission100_sl
-        for mp in self.dict_picking:
-            if mp in stato.df_stock_mp.index:
-                if (self.dict_picking[mp][1] != 'S'
-                        and self.dict_picking[mp][2] == 'O'
-                        and stato.df_stock_mp.loc[mp, 'zona'] == 'M'):
-                    # mette stato "richiesto"
-                    self.dict_picking[mp][2] = 'R'
-                    n_mission500_mp += 1
-                    Mission500_mp(codice=mp, mission='picking', dosaggio=self)
-                    break
-            elif mp in stato.df_stock_sl.index:
-                if (self.dict_picking[mp][1] != 'S'
-                        and self.dict_picking[mp][2] == 'O'
-                        and stato.df_stock_sl.loc[mp, 'zona'] == 'M'):
-                    self.dict_picking[mp][2] = 'R'  # mette stato "richiesto"
-                    n_mission100_sl += 1
-                    Mission100_sl(codice=mp, dosaggio=self)
-                    break
+    def start_mission(self, mp):
+        global n_mission500_mp, n_mission100_sl
+        if mp in stato.df_stock_mp.index:
+            n_mission500_mp += 1
+            Mission500_mp(codice=None, mission='picking', dosaggio=self)
+        elif mp in stato.df_stock_sl.index:
+            n_mission100_sl += 1
+            Mission100_sl(dosaggio=self)
         return()
 
     def process(self):
@@ -263,8 +206,8 @@ class Dosaggio(sim.Component):
         self.cono.zona = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
 
-        for _ in range(len(self.dict_picking)):
-            self.start_mission()
+        for x in self.materie_prime:
+            self.start_mission(mp=x)
 
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -345,11 +288,19 @@ class Staz_auto(sim.Component):
     def weigh(self):
         global stato
         t = 0
-        for mp, car in self.dosaggio.dict_picking.items():
-            if car[1] == 'S' and car[2] == 'D':
-                if car[0] <= 2.5:
+        condition = False
+        for mp in self.dosaggio.materie_prime:
+            if mp[0] in stato.df_stock_mp.index:
+                condition = (stato.df_stock_mp.loc[mp, 'zona'] == 'S'
+                             and stato.df_stock_mp.loc[mp, 'stato'] == 'D')
+            else:
+                condition = (stato.df_stock_sl.loc[mp, 'zona'] == 'S'
+                             and stato.df_stock_sl.loc[mp, 'stato'] == 'D')
+
+            if condition:
+                if self.materie_prime[mp] <= 2.5:
                     t += stato.t_tool/60
-                    t += ((math.floor(car[0] / 1) - 1)
+                    t += ((math.floor(self.materie_prime[mp] / 1) - 1)
                           * stato.t_pig_v/60)
                     t += 2 * (stato.t_pig_f / 60)
                     break
@@ -357,7 +308,7 @@ class Staz_auto(sim.Component):
                     if stato.tool != 2:
                         t += stato.t_tool/60
                         stato.tool = 2
-                    t += ((math.floor(car[0] / 2) - 1)
+                    t += ((math.floor(self.materie_prime[mp] / 2) - 1)
                           * stato.t_mass_v/60)
                     t += 2 * (stato.t_mass_f/60)
                     break
@@ -381,19 +332,20 @@ class Staz_auto(sim.Component):
                 t_pes = tupla[0]
                 mp = tupla[1]
                 if t_pes != 0:
-                    self.dosaggio.dict_picking[mp][2] = 'WIP'
+                    if mp[0] in stato.df_stock_mp.index:
+                        stato.df_stock_mp.loc[mp, 'stato'] = 'WIP'
+                    else:
+                        stato.df_stock_sl.loc[mp, 'stato'] = 'WIP'
 
                     #  rimuove dalla giacenza i kg di mp usata
                     if mp in stato.df_stock_mp.index:
                         stato.df_stock_mp.loc[mp,
-                                              'qta'] -= self.dosaggio.dict_picking[mp][0]
+                                              'qta'] -= self.dosaggio.materie_prime[mp]
 
                     yield self.hold(t_pes)
-                    del self.dosaggio.dict_picking[mp]
+                    del self.dosaggio.materie_prime[mp]
 
-                    if len(self.dosaggio.dict_picking) == 2:
-                        call_mir.trigger(max=1)
-                    elif len(self.dosaggio.dict_picking) == 0:
+                    if len(self.dosaggio.materie_prime) == 0:
                         wait = False
                 else:
                     #  print(self.dosaggio.dict_picking)
@@ -401,14 +353,13 @@ class Staz_auto(sim.Component):
                     #  capire a cosa serve questo else
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
-            '''print('Dosato {} '.format(self.n), env.now(), str(
-                self.dosaggio.estrusore), self.dosaggio.cono.rfid)'''
+            '''print('Dosato {} '.format(self.n), env.now(),
+                self.dosaggio.estrusore, self.dosaggio.cono.rfid)'''
             stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
                                                         env.now(),
                                                         self.dosaggio.kg,
                                                         'staz.dosaggio')
             self.dosaggio.activate()
-            generator_auto.pull = True
 
 
 class Mission500_coni(sim.Component):
@@ -467,12 +418,10 @@ class Mission500_mp(sim.Component):
 
     def process(self):
         global stato, n_mission500_mp, totale_stazione
-        print('missione mir richiesta', self.dosaggio.ID,
-              env.now(), datetime.now())
+
         #  seize resource
         yield self.request(mir500_mp)
-        print('missione mir partita', self.dosaggio.ID,
-              env.now(), datetime.now())
+
         if self.mission == 'picking':
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
@@ -524,11 +473,6 @@ class Mission500_mp(sim.Component):
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
             yield self.hold(dtb.sample())
             #  yield self.hold(0)
-
-            '''mask_station = (stato.df_stock_mp['zona'] == 'S')
-            cod_staz = list(stato.df_stock_mp[mask_station].index)
-            print(self.n_mission, remove_cod, self.cod_pick,
-                  env.now(), datetime.now())'''
 
             self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
             self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
@@ -712,8 +656,7 @@ call_mir = sim.State('call_mir')
 dos_done = sim.State('dos_done')
 #  ------------
 
-#  DosaggioGenerator()
-generator_auto = DosaggioGeneratorAuto()
+DosaggioGeneratorAuto()
 
 #  massimo numero di mir500 MP è 4
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
