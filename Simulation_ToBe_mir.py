@@ -72,17 +72,18 @@ db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
 
 
 class DosaggioGeneratorAuto(sim.Component):
-    def setup(self):
-        self.pull = True
-
     def process(self):
+        opened = 0
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if ('D' in stato.df_coni['stato'].values):
+            if 'D' in stato.df_coni['stato'].values and opened < 2:
                 Dosaggio(staz_call=staz_auto)
-                yield self.wait((dos_done, True, 1))
+                if opened == 0:
+                    yield self.hold(10)
+                opened += 1
             else:
-                yield self.standby()
+                yield self.wait((dos_done, True, 1))
+                opened -= 1
 
 
 class Dosaggio(sim.Component):
@@ -162,7 +163,7 @@ class Dosaggio(sim.Component):
             best_dosaggio = df_coda.iloc[idx_que, :]
 
             self.parameters(best_dosaggio)
-            #  print('Setting up ', env.now(), self.ID)
+            print('Setting up ', env.now(), self.ID)
 
             for cono in obj_coni:
                 if cono.estrusore == self.estrusore and cono.stato == 'D':
@@ -250,20 +251,21 @@ class Dosaggio(sim.Component):
 
     def process(self):
         global stato
-        #  stato.df_OP.loc[self.ID, 'stato'] = 'C'
+        stato.df_OP.loc[self.ID, 'stato'] = 'C'
         self.richiesta_cono = env.now()
 
         stato.elements += 1
         Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
                         dosaggio=self)
-
-        for _ in range(len(self.dict_picking)):
-            self.start_mission()
         yield self.passivate()
 
         self.enter(self.staz_call.que)
         self.cono.zona = 'Que ' + self.staz_call.n
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
+
+        for _ in range(len(self.dict_picking)):
+            self.start_mission()
+
         if self.staz_call.ispassive():
             self.staz_call.activate()
         yield self.passivate()
@@ -388,9 +390,13 @@ class Staz_auto(sim.Component):
 
                     yield self.hold(t_pes)
                     del self.dosaggio.dict_picking[mp]
-                    if len(self.dosaggio.dict_picking) == 0:
+
+                    if len(self.dosaggio.dict_picking) == 2:
+                        call_mir.trigger(max=1)
+                    elif len(self.dosaggio.dict_picking) == 0:
                         wait = False
                 else:
+                    #  print(self.dosaggio.dict_picking)
                     yield self.standby()
                     #  capire a cosa serve questo else
             #  --------------------
@@ -461,13 +467,13 @@ class Mission500_mp(sim.Component):
 
     def process(self):
         global stato, n_mission500_mp, totale_stazione
-
+        print('missione mir richiesta', self.dosaggio.ID,
+              env.now(), datetime.now())
         #  seize resource
         yield self.request(mir500_mp)
-
+        print('missione mir partita', self.dosaggio.ID,
+              env.now(), datetime.now())
         if self.mission == 'picking':
-            #  print(cod_staz)
-            # print(self.dosaggio.dict_picking.keys())
             #  seleziona il codice da portare via dalla staz_auto
             remove_cod = None
             go = False
@@ -519,10 +525,10 @@ class Mission500_mp(sim.Component):
             yield self.hold(dtb.sample())
             #  yield self.hold(0)
 
-            mask_station = (stato.df_stock_mp['zona'] == 'S')
+            '''mask_station = (stato.df_stock_mp['zona'] == 'S')
             cod_staz = list(stato.df_stock_mp[mask_station].index)
-            print(len(cod_staz), self.n_mission, remove_cod, self.cod_pick,
-                  env.now(), datetime.now())
+            print(self.n_mission, remove_cod, self.cod_pick,
+                  env.now(), datetime.now())'''
 
             self.dosaggio.dict_picking[self.cod_pick][1] = 'S'
             self.dosaggio.dict_picking[self.cod_pick][2] = 'D'
@@ -702,6 +708,7 @@ print('PARTENZA ', start)
 env = sim.Environment()
 
 #  states
+call_mir = sim.State('call_mir')
 dos_done = sim.State('dos_done')
 #  ------------
 
@@ -798,6 +805,8 @@ sat6 = E6.status.print_histogram(values=True, as_str=True)
 sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
+
+#  que_staz_dos.print_statistics()
 
 #  que_staz_dos.print_statistics()
 
