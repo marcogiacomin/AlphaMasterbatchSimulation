@@ -14,10 +14,10 @@ from sim_queue import (obj_buffer, que_staz_dos)
 from datetime import datetime
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5
-t_scarico = 0.3
-t_manovra = 1
-t_depall = 1
+t_carico = 0.5/2
+t_scarico = 0.3/2
+t_manovra = 1/2
+t_depall = 1/2
 #  ------------------
 
 # set distributions for service times
@@ -71,15 +71,17 @@ db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
 #  --------------------
 
 
-''' class DosaggioGeneratorAuto(sim.Component):
+class DosaggioGeneratorAuto(sim.Component):
     def process(self):
+        Dosaggio(staz_call=staz_auto)
+        yield self.hold(5)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((dos_done, True, 1))
             else:
-                yield self.standby()'''
+                yield self.standby()
 
 
 class Dosaggio(sim.Component):
@@ -204,12 +206,6 @@ class Dosaggio(sim.Component):
 
         for x in self.materie_prime:
             self.start_mission(mp=x)
-            '''if x in stato.df_stock_mp.index:
-                if stato.df_stock_mp.loc[x, 'zona'] != 'S':
-                    self.start_mission(mp=x)
-            else:
-                if stato.df_stock_sl.loc[x, 'zona'] != 'S':
-                    self.start_mission(mp=x)'''
 
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -305,7 +301,7 @@ class Staz_auto(sim.Component):
                     t += ((math.floor(self.dosaggio.materie_prime[mp] / 1) - 1)
                           * stato.t_pig_v/60)
                     t += 2 * (stato.t_pig_f / 60)
-                    break
+                    return(t, mp)
                 else:
                     if stato.tool != 2:
                         t += stato.t_tool/60
@@ -313,29 +309,27 @@ class Staz_auto(sim.Component):
                     t += ((math.floor(self.dosaggio.materie_prime[mp] / 2) - 1)
                           * stato.t_mass_v/60)
                     t += 2 * (stato.t_mass_f/60)
-                    break
-        return(t, mp)
+                    return(t, mp)
+        return(None)
 
     def process(self):
         global stato
-        Dosaggio(staz_call=self)
         while True:
             while len(que_staz_dos) == 0:
                 yield self.passivate()
             self.dosaggio = que_staz_dos.pop()
 
             self.dosaggio.cono.zona = 'DOS ' + self.n
-            #  crea la picking list
             self.dosaggio.inizio_dosatura = env.now()
 
             #  dosa le cose una per volta
-            #  chiama la missione per MIR
             wait = True
             while wait:
                 tupla = self.weigh()
-                t_pes = tupla[0]
-                mp = tupla[1]
-                if t_pes != 0:
+                if tupla is not None:
+                    t_pes = tupla[0]
+                    mp = tupla[1]
+
                     if mp in stato.df_stock_mp.index:
                         stato.df_stock_mp.loc[mp, 'stato'] = 'WIP'
                     else:
@@ -348,25 +342,20 @@ class Staz_auto(sim.Component):
 
                     yield self.hold(t_pes)
                     del self.dosaggio.materie_prime[mp]
+                    print('finito', mp)
                     if mp in stato.df_stock_mp.index:
                         stato.df_stock_mp.loc[mp, 'stato'] = 'D'
                     else:
                         stato.df_stock_sl.loc[mp, 'stato'] = 'D'
 
-                    if len(self.dosaggio.materie_prime) <= 1:
-                        Dosaggio(staz_call=self)
-
                     if len(self.dosaggio.materie_prime) == 0:
                         wait = False
                 else:
-                    print('standby', self.dosaggio.materie_prime.keys(),
-                          self.dosaggio.ID)
                     yield self.standby()
-                    #  capire a cosa serve questo else
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
-            '''print('Dosato {} '.format(self.n), env.now(),
-                self.dosaggio.estrusore, self.dosaggio.cono.rfid)'''
+            print('Dosato {} '.format(self.dosaggio.ID), env.now(),
+                  self.dosaggio.cono.rfid)
             stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
                                                         env.now(),
                                                         self.dosaggio.kg,
@@ -436,13 +425,12 @@ class Mission500_mp(sim.Component):
             #  seleziona il codice da prelevare
             for c in self.dosaggio.materie_prime:
                 if c in stato.df_stock_mp.index:
-                    if (stato.df_stock_mp.loc[c, 'zona'] == 'M'
-                            and stato.df_stock_mp.loc[c, 'stato'] is None):
-                        print('entrato', c)
+                    if (stato.df_stock_mp.loc[c, 'stato'] is None
+                            and stato.df_stock_mp.loc[c, 'zona'] == 'M'):
                         self.cod_pick = c
                         stato.df_stock_mp.loc[c, 'stato'] = 'R'
                         break
-            if self.cod_pick is None:
+            if self.cod_pick == None:
                 self.release()
                 yield self.passivate()
             #  --------------
@@ -454,7 +442,6 @@ class Mission500_mp(sim.Component):
                 #  individua i codici presenti nella staz_auto
                 mask_station = (stato.df_stock_mp['zona'] == 'S')
                 cod_staz = list(stato.df_stock_mp[mask_station].index)
-
                 if len(cod_staz) != 0:
                     for c in cod_staz:
                         if (c not in self.dosaggio.materie_prime
@@ -465,18 +452,17 @@ class Mission500_mp(sim.Component):
                             stato.df_stock_mp.loc[remove_cod, 'zona'] = 'H'
                             stato.df_stock_mp.loc[remove_cod, 'stato'] = 'H'
                             break
-                        else:
-                            print('mir500 standby',
-                                  self.n_mission, self.cod_pick, self.dosaggio.ID)
-                            print(cod_staz)
-                            yield self.standby()
+                    if not go:
+                        yield self.standby()
                 else:
                     yield self.standby()
             #  ------------
 
             #  inizia con la missione
             self.partenza = env.now()
-
+            print(self.n_mission, self.dosaggio.ID, self.cod_pick, remove_cod)
+            print(self.dosaggio.materie_prime.keys())
+            print('alla stazione manca', staz_auto.dosaggio.materie_prime.keys())
             if stato.df_stock_mp.loc[remove_cod, 'qta'] >= 90:
                 t = (stato.df_stock_mp.loc[remove_cod, 'sezione'] * t_carico
                      + t_manovra
@@ -524,7 +510,7 @@ class Mission500_mp(sim.Component):
             #  yield self.hold(dtb.sample())
             yield self.hold(0)
             stato.df_stock_mp.loc[self.cod_pick, 'zona'] = 'M'
-            stato.df_stock_mp.loc[self.cod_pick, 'stato'] = 'None'
+            stato.df_stock_mp.loc[self.cod_pick, 'stato'] = None
 
         self.release()
         yield self.passivate()
@@ -552,12 +538,9 @@ class Mission100_sl(sim.Component):
             if c in stato.df_stock_sl.index:
                 if (stato.df_stock_sl.loc[c, 'zona'] == 'M'
                         and stato.df_stock_sl.loc[c, 'stato'] is None):
-                    print('entrato 100', c)
                     self.cod_pick = c
                     stato.df_stock_sl.loc[c, 'stato'] = 'R'
                     break
-        print('mir100', self.dosaggio.ID, self.cod_pick,
-              self.dosaggio.materie_prime.keys())
         #  --------------
 
         #  seleziona il codice da portare via dalla staz_auto
@@ -702,7 +685,7 @@ class Depallettizzazione(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission100_sl = 0
 n_mission500_coni = 0
@@ -716,13 +699,13 @@ env = sim.Environment()
 dos_done = sim.State('dos_done')
 #  ------------
 
-#  DosaggioGeneratorAuto()
+DosaggioGeneratorAuto()
 
 #  massimo numero di mir500 MP è 4
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=4)
+mir500_mp = sim.Resource('MIR500 MP', capacity=1)
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
@@ -809,12 +792,15 @@ sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
 
+
+print(len(mir500_mp.claimers()))
 #  que_staz_dos.print_statistics()
 
 #  que_staz_dos.print_statistics()
 
 #  que_staz_dos.print_statistics()
-
+#  que_staz_dos.print_statistics()
+#  que_staz_dos.print_statistics()
 #  que_staz_dos.print_statistics()
 #  que_staz_dos.print_statistics()
 #  que_staz_dos.print_statistics()

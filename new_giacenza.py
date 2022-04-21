@@ -70,6 +70,7 @@ df_mp['sezione'] = None
 df_mp['qta'] = 500
 df_mp['zona'] = 'M'
 df_mp['stato'] = None
+df_mp['statonext'] = None
 
 sections = 10
 containers_in_section = len(df_mp) / sections
