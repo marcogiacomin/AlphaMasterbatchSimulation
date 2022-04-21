@@ -14,10 +14,10 @@ from sim_queue import (obj_buffer, que_staz_dos)
 from datetime import datetime
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5/2
-t_scarico = 0.3/2
-t_manovra = 1/2
-t_depall = 1/2
+t_carico = 0.5
+t_scarico = 0.3
+t_manovra = 1
+t_depall = 1
 #  ------------------
 
 # set distributions for service times
@@ -118,7 +118,7 @@ class Dosaggio(sim.Component):
     def end_process(self):
         global stato
         self.cono.cicli += 1
-        self.cono.zona = 'MAG'
+        self.cono.posizione = 'MAG'
         self.cono.stato = 'D'
 
         stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
@@ -201,7 +201,7 @@ class Dosaggio(sim.Component):
         yield self.passivate()
 
         self.enter(self.staz_call.que)
-        self.cono.zona = 'Que ' + self.staz_call.n
+        self.cono.posizione = 'Que ' + str(self.staz_call.n)
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
 
         for x in self.materie_prime:
@@ -214,10 +214,10 @@ class Dosaggio(sim.Component):
         #  ------------------
 
         #  ingresso nel miscelatore
-        self.cono.zona = 'MISC_request'
+        self.cono.posizione = 'MISC_request'
         yield self.request(miscelatore)
         self.inizio_miscelazione = env.now()
-        self.cono.zona = 'MISC'
+        self.cono.posizione = 'MISC'
         stato.df_OP.loc[[self.ID], 'stato'] = 'M'
         yield self.hold(db_miscelatore.sample())
         self.fine_miscelazione = env.now()
@@ -232,10 +232,10 @@ class Dosaggio(sim.Component):
 
         #  ingresso handlingest e arrivo sul buffer se non Leistritz
         if self.estrusore not in ['E5', 'E9']:
-            self.cono.zona = 'GUA_EST_request'
+            self.cono.posizione = 'GUA_EST_request'
             yield self.request(handlingest)
             stato.df_OP.loc[[self.ID], 'stato'] = 'G'
-            self.cono.zona = 'GUA_EST'
+            self.cono.posizione = 'GUA_EST'
             self.ingresso_handlingest = env.now()
             yield self.hold(db_handlingest.sample())
             i = stato.estrusori.index(self.estrusore)
@@ -243,12 +243,12 @@ class Dosaggio(sim.Component):
                 yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.zona = 'BUFF ' + self.estrusore
+            self.cono.posizione = 'BUFF ' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
             self.release()
             self.fine_handlingest = env.now()
         else:
-            self.cono.zona = 'attesa sul mir'
+            self.cono.posizione = 'attesa sul mir'
             i = stato.estrusori.index(self.estrusore)
             #  qui deve chiamare il mir500 che prende il cono pieno
             #  lo carica e lo porta fino all'estrusore
@@ -259,7 +259,7 @@ class Dosaggio(sim.Component):
                 yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
-            self.cono.zona = 'BUFF' + self.estrusore
+            self.cono.posizione = 'BUFF' + self.estrusore
             stato.df_OP.loc[[self.ID], 'stato'] = 'B'
         #  -------------------
 
@@ -319,7 +319,7 @@ class Staz_auto(sim.Component):
                 yield self.passivate()
             self.dosaggio = que_staz_dos.pop()
 
-            self.dosaggio.cono.zona = 'DOS ' + self.n
+            self.dosaggio.cono.posizione = 'DOS ' + self.n
             self.dosaggio.inizio_dosatura = env.now()
 
             #  dosa le cose una per volta
@@ -383,14 +383,14 @@ class Mission500_coni(sim.Component):
         n_mission500_coni += 1
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
-            self.cono.zona = 'HANDLING'
+            self.cono.posizione = 'HANDLING PULIZIA'
             yield self.hold(db_mir500_coni_pul.sample())
             #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
         elif self.mission == 'staz_auto dosaggio':
-            self.cono.zona = 'HANDLING'
+            self.cono.posizione = 'HANDLING DOSAGGIO'
             #  yield self.hold(db_mir500_coni_staz.sample())
             yield self.hold(0)
             self.scarico = env.now()
@@ -597,7 +597,7 @@ class Estrusore(sim.Component):
                     self.dosaggio = obj_buffer[i].pop()
                     stato.df_OP.loc[[self.dosaggio.ID], 'stato'] = 'E'
                     self.dosaggio.inizio_estrusione = env.now()
-                    self.dosaggio.cono.zona = est
+                    self.dosaggio.cono.posizione = est
                     extrusion_time = db_extrusion.sample()
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time)
@@ -646,7 +646,7 @@ class Pulizia(sim.Component):
                 Mission500_coni(cono=cono, pulizia=self,
                                 mission='stazione pulizia')
                 yield self.passivate()
-                cono.zona = 'PUL'
+                cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
                 #  yield self.hold(db_pulizia.sample())
                 yield self.hold(0)
@@ -661,7 +661,7 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 self.scarico_cono = env.now()
                 cono.stato = 'D'
-                cono.zona = 'MAG'
+                cono.posizione = 'MAG'
                 cono.coda_pul = False
                 stato.dict_timestamp_pulizie = module_stats.aggiorna_timestamp_pulizie(
                     self, stato.dict_timestamp_pulizie)
@@ -685,7 +685,7 @@ class Depallettizzazione(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 100  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission100_sl = 0
 n_mission500_coni = 0
@@ -705,7 +705,7 @@ DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=1)
+mir500_mp = sim.Resource('MIR500 MP', capacity=4)
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
