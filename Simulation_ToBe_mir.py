@@ -86,25 +86,25 @@ class DosaggioGeneratorAuto(sim.Component):
 
 class FleetManager(sim.Component):
     def setup(self):
-        self.dosaggio1 = None
-        self.dosaggio2 = None
-        self.picking_list1 = []
-        self.picking_list2 = []
+        self.picking_list = []
         
     def process(self):
         while True:
-            pass
-            #  seleziona il codice da prelevare
-           
-            #  ------------
-
-            #  seleziona il codice da portare via dalla staz_auto
-            
-            #  ------------
-
-            #  genera la missione
-           
-            #  ------------
+            if len(self.picking_list) > 0:
+                codice = self.picking_list.pop()
+                #  seleziona il codice da prelevare
+                              
+                #  ------------
+    
+                #  seleziona il codice da portare via dalla staz_auto
+                
+                #  ------------
+    
+                #  genera la missione
+               
+                #  ------------
+            else:
+                yield self.standby()
            
 
 class Dosaggio(sim.Component):
@@ -217,12 +217,14 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'Que ' + str(self.staz_call.n)
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
 
-        fleet_manager.dosaggio2 = self.ID
         for x in self.materie_prime:
+            fleet_manager.picking_list.append(x)
             if x in stato.df_stock_mp.index:
-                fleet_manager.picking_list2.append(x)
+                if stato.df_stock_mp.loc[x, 'stato'] == None:
+                    stato.df_stock_mp.loc[x, 'stato'] = 1
             else:
-                Mission100_sl(dosaggio=self)
+                if stato.df_stock_sl.loc[x, 'stato'] == None:
+                    stato.df_stock_sl.loc[x, 'stato'] = 1
 
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -362,9 +364,13 @@ class Staz_auto(sim.Component):
                     yield self.hold(t_pes)
                     del self.dosaggio.materie_prime[mp]
                     if mp in stato.df_stock_mp.index:
-                        stato.df_stock_mp.loc[mp, 'stato'] = 5
+                        if mp in fleet_manager.picking_list:
+                            stato.df_stock_mp.loc[mp, 'stato'] = 3
+                        else:
+                            stato.df_stock_mp.loc[mp, 'stato'] = 5
                     else:
                         stato.df_stock_sl.loc[mp, 'stato'] = 5
+                        sl_finish.trigger(max=1)
 
                     if len(self.dosaggio.materie_prime) == 0:
                         wait = False
@@ -535,7 +541,8 @@ class Mission100_sl(sim.Component):
         self.scarico = env.now()
         stato.dict_timestamp_picking = module_stats.aggiorna_timestamp_picking(
             self, stato.dict_timestamp_picking)
-
+        
+        yield self.wait(((sl_finish, True, 1)))
         self.release()
         yield self.passivate()
 
@@ -655,6 +662,7 @@ env = sim.Environment()
 
 #  states
 dos_done = sim.State('dos_done')
+sl_finish  =sim.State('sl_finsih')
 #  ------------
 
 DosaggioGeneratorAuto()
