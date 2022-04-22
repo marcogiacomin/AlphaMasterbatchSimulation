@@ -685,7 +685,7 @@ class Depallettizzazione(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 100  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_mp = 0
 n_mission100_sl = 0
 n_mission500_coni = 0
@@ -705,7 +705,7 @@ DosaggioGeneratorAuto()
 #  perchè avendo 4 cassoni in stazione il 5° mir che partirebbe non troverebbe
 #  nessun cassone da rimuovere dalla stazione
 #  quindi rimarrebbe per tempo infinito nel ciclo while standby() a riga 562
-mir500_mp = sim.Resource('MIR500 MP', capacity=4)
+mir500_mp = sim.Resource('MIR500 MP', capacity=1)
 mir100_sl = sim.Resource('MIR100 SL', capacity=1)
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
