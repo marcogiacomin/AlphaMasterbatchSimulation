@@ -1,11 +1,12 @@
 import module_class_cono
-import module_stats
+import module_stats_reeng
 import module_que_by_est
 
 import pandas as pd
 import salabim as sim
 from scipy import stats
 from random import random
+import math
 
 from module_class_cono import obj_coni
 from class_stato import stato
@@ -59,13 +60,21 @@ d_mir500_coni_staz = sim.Normal(
 db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
                                   lowerbound=5, upperbound=15)
 
-d_mir500_mp_mag = sim.Normal(mean=3, standard_deviation=0.3)  # only go
-db_mir500_mp_mag = sim.Bounded(d_mir500_mp_mag, lowerbound=0, upperbound=6)
-
-d_mir500_mp_buff = sim.Normal(mean=1, standard_deviation=0.1)  # only go
-db_mir500_mp_buff = sim.Bounded(d_mir500_mp_buff, lowerbound=0.5, upperbound=2)
+d_mir100_sl = sim.Normal(
+    mean=3, standard_deviation=0.4)  # go and back CT
+db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
+                           lowerbound=2, upperbound=8)
 #  --------------------
 
+class DosaggioGeneratorAuto(sim.Component):
+    def process(self):
+        while True:
+            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
+            if 'D' in stato.df_coni['stato'].values:
+                Dosaggio(staz_call=staz_auto)
+                yield self.wait((dos_done, True, 1))
+            else:
+                yield self.standby()
 
 class DosaggioGenerator(sim.Component):
     def process(self):
@@ -79,7 +88,7 @@ class DosaggioGenerator(sim.Component):
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
             else:
-                yield self.hold(1)
+                yield self.standby()
 
 
 class Dosaggio(sim.Component):
@@ -92,21 +101,13 @@ class Dosaggio(sim.Component):
         self.TE = best_dosaggio.loc['TE']
         self.color = best_dosaggio.loc['color']
         self.valcrom = best_dosaggio.loc['valcrom']
-        self.materie_prime = []
-        self.peso_mp = []
+        self.materie_prime = {}
         self.cono = None
 
-        for i in [('cod.i' + str(n)) for n in range(1, 16)]:
-            x = best_dosaggio.loc[i]
+        for i in [('cod.i' + str(n), 'kg.i' + str(n)) for n in range(1, 16)]:
+            x = best_dosaggio.loc[i[0]]
             if x != '':
-                self.materie_prime.append(x)
-            else:
-                break
-
-        for i in [('kg.i' + str(n)) for n in range(1, 16)]:
-            x = best_dosaggio.loc[i]
-            if x != '':
-                self.peso_mp.append(x)
+                self.materie_prime[x] = best_dosaggio.loc[i[1]]
             else:
                 break
 
@@ -127,11 +128,11 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'MAG'
         self.cono.stato = 'D'
 
-        stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
+        stato.dict_throughput = module_stats_reeng.kg_cum(stato.dict_throughput,
                                                     env.now(),
                                                     self.kg,
                                                     self.estrusore)
-        stato.dict_timestamp_dosaggi = module_stats.aggiorna_timestamp_dosaggi(
+        stato.dict_timestamp_dosaggi = module_stats_reeng.aggiorna_timestamp_dosaggi(
             self, stato.dict_timestamp_dosaggi)
         stato.elements -= 1
         stato.dict_elements['time'].append(env.now()/60)
@@ -139,7 +140,7 @@ class Dosaggio(sim.Component):
         return()
 
     def setup(self, staz_call):
-        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
+        global stato, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
         t = env.now()
 
         self.staz_call = staz_call
@@ -221,7 +222,7 @@ class Dosaggio(sim.Component):
 
         if self.estrusore not in ['E5', 'E9']:
             while handlingest.claimers().length() != 0:
-                yield self.hold(0.1)
+                yield self.standby()
         self.release()
         self.fine_miscelazione = env.now()
         print('miscelato ', env.now(),
@@ -247,7 +248,7 @@ class Dosaggio(sim.Component):
         else:
             i = stato.estrusori.index(self.estrusore)
             while len(obj_buffer[i]) >= 2:
-                yield self.hold(0.1)
+                yield self.standby()
             self.ingresso_buffer = env.now()
             self.enter(obj_buffer[i])
             self.cono.posizione = 'BUFF'
@@ -287,13 +288,13 @@ class Stazione(sim.Component):
             print('Dosato ', env.now(), str(
                 self.dosaggio.estrusore), self.dosaggio.cono.rfid)
 
-            stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
+            stato.dict_throughput = module_stats_reeng.kg_cum(stato.dict_throughput,
                                                         env.now(),
                                                         self.dosaggio.kg,
                                                         'staz.dosaggio')
             # attiva solo se la coda del miscelatore è vuota
             while miscelatore.claimers().length() >= 2:
-                yield self.hold(0.1)
+                yield self.standby()
             self.dosaggio.activate()
 
 
@@ -301,29 +302,157 @@ class Staz_auto(sim.Component):
     def setup(self, n):
         self.n = n
         self.que = que_staz_dos
+        self.dosaggio = None
+
+    def weigh(self):
+        global stato
+        t = 0
+        condition = False
+
+        for mp in self.dosaggio.materie_prime:
+            if mp in stato.df_stock_mp.index:
+                condition = (stato.df_stock_mp.loc[mp, 'zona'] == 'S'
+                             and stato.df_stock_mp.loc[mp, 'stato'] == 3)
+            else:
+                condition = (stato.df_stock_sl.loc[mp, 'zona'] == 'S'
+                             and stato.df_stock_sl.loc[mp, 'stato'] == 3)
+
+            if condition:
+                if self.dosaggio.materie_prime[mp] <= 2.5:
+                    t += stato.t_tool/60
+                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 1) - 1)
+                          * stato.t_pig_v/60)
+                    t += 2 * (stato.t_pig_f / 60)
+                    return(t, mp)
+                else:
+                    if stato.tool != 2:
+                        t += stato.t_tool/60
+                        stato.tool = 2
+                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 2) - 1)
+                          * stato.t_mass_v/60)
+                    t += 2 * (stato.t_mass_f/60)
+                    return(t, mp)
+        return(None)
 
     def process(self):
-        global stato, dict_picking
-        yield self.hold(1)
+        global stato, picking_list_sl
         while True:
-            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if 'D' in stato.df_coni['stato'].values:
-                Dosaggio(staz_call=self)
-                while len(que_staz_dos) == 0:
-                    yield self.passivate()
-                self.dosaggio = que_staz_dos.pop()
-                self.dosaggio.inizio_dosatura = env.now()
-                yield self.hold(self.dosaggio.TD)
-                self.dosaggio.fine_dosatura = env.now()
-                print('Dosato ', env.now(), str(
-                    self.dosaggio.estrusore), self.dosaggio.cono.rfid)
-                stato.dict_throughput = module_stats.kg_cum(stato.dict_throughput,
-                                                            env.now(),
-                                                            self.dosaggio.kg,
-                                                            'staz.dosaggio')
-                self.dosaggio.activate()
+            while len(que_staz_dos) == 0:
+                yield self.passivate()
+            self.dosaggio = que_staz_dos.pop()
+            for x in self.dosaggio.materie_prime:
+                if x in stato.df_stock_mp.index:
+                    stato.df_stock_mp.loc[x, 'zona'] = 'S'
+                    stato.df_stock_mp.loc[x, 'stato'] = 3
+                else:
+                    stato.df_stock_sl.loc[x, 'stato'] = 1
+                    picking_list_sl.append(x)
+            print(picking_list_sl, self.dosaggio.estrusore, env.now())        
+
+            self.dosaggio.cono.posizione = 'DOS ' + self.n
+            self.dosaggio.inizio_dosatura = env.now()
+
+            #  dosa le cose una per volta
+            wait = True
+            while wait:
+                tupla = self.weigh()
+                if tupla is not None:
+                    t_pes = tupla[0]
+                    mp = tupla[1]
+
+                    if mp in stato.df_stock_mp.index:
+                        stato.df_stock_mp.loc[mp, 'stato'] = 4
+                    else:
+                        stato.df_stock_sl.loc[mp, 'stato'] = 4
+
+                    yield self.hold(t_pes)
+                    
+                    #  rimuove dalla giacenza i kg di mp usata
+                    if mp in stato.df_stock_mp.index:
+                        stato.df_stock_mp.loc[mp,
+                                              'qta'] -= self.dosaggio.materie_prime[mp]
+                    else:
+                        free100.trigger(max=1)
+                        
+                    del self.dosaggio.materie_prime[mp]
+                    if mp in stato.df_stock_mp.index:
+                            stato.df_stock_mp.loc[mp, 'stato'] = 5
+                    else:
+                        stato.df_stock_sl.loc[mp, 'stato'] = 5
+
+                    if len(self.dosaggio.materie_prime) == 0:
+                        wait = False
+                else:
+                    yield self.standby()
+            dos_done.trigger(max=1)
+            #  --------------------
+            self.dosaggio.fine_dosatura = env.now()
+            print('Dosato {} '.format(self.dosaggio.ID), env.now(),
+                  self.dosaggio.cono.rfid)
+            stato.dict_throughput = module_stats_reeng.kg_cum(stato.dict_throughput,
+                                                        env.now(),
+                                                        self.dosaggio.kg,
+                                                        'staz.dosaggio')
+            self.dosaggio.activate()
+
+
+class Mir100Manager(sim.Component):
+    def setup(self):
+        self.pick_code = None
+        mask_s = stato.df_stock_sl['zona'] == 'S'
+        self.remove_code = stato.df_stock_sl[mask_s].index[0]
+        
+        self.veicolo = 'MIR100'
+        self.n_mission = 0
+        
+        self.richiesta = env.now()
+        self.partenza = 0
+        self.scarico = 0
+
+    
+    def process(self):
+        global picking_list_sl
+        while True:
+            #  ------------
+            if len(picking_list_sl) > 0:
+                #  seize resource
+                yield self.request(mir100)
+                self.n_mission += 1
+                for x in picking_list_sl:
+                    if (x in stato.df_stock_sl.index
+                        and stato.df_stock_sl.loc[x, 'zona'] == 'M'
+                        and stato.df_stock_sl.loc[x, 'stato'] == 1):
+                        self.pick_code = x
+                        picking_list_sl.remove(self.pick_code)
+                        #  inizia con la missione
+                        self.partenza = env.now()
+                        stato.df_stock_sl.loc[self.pick_code, 'stato'] = 2
+                        if self.remove_code is not None:
+                            stato.df_stock_sl.loc[self.remove_code, 'stato'] = 6
+                        yield self.hold(db_mir100_sl.sample())
+                        #  yield self.hold(0)
+                        if self.remove_code is not None:
+                            stato.df_stock_sl.loc[self.remove_code, 'zona'] = 'M'
+                            stato.df_stock_sl.loc[self.remove_code, 'stato'] = None
+                        yield self.hold(db_mir100_sl.sample())
+                        #  yield self.hold(0)
+        
+                        stato.df_stock_sl.loc[self.pick_code, 'stato'] = 3
+                        stato.df_stock_sl.loc[self.pick_code, 'zona'] = 'S'
+                        self.scarico = env.now()
+                        stato.dict_timestamp_picking = module_stats_reeng.aggiorna_timestamp_picking(
+                            self, stato.dict_timestamp_picking)
+                        print('quiiiiiiiiiiiiiiiii', staz_auto.dosaggio.estrusore)
+                        yield self.wait((free100, 1, True))
+                        print('quaaaaaaaaaaaaaaaaaaaa', staz_auto.dosaggio.estrusore)
+                        self.remove_code = self.pick_code
+                        self.pick_code = None
+                        self.release()
+                        break
+                    else:
+                        yield self.standby()    
             else:
-                yield self.hold(0.1)
+                yield self.hold(1)
 
 
 class Mission500_coni(sim.Component):
@@ -358,7 +487,7 @@ class Mission500_coni(sim.Component):
             self.release()
             self.dosaggio.activate()
         stato.dict_timestamp_mir500 =\
-            module_stats.aggiorna_timestamp_mir500(self,
+            module_stats_reeng.aggiorna_timestamp_mir500(self,
                                                    stato.dict_timestamp_mir500)
         yield self.passivate()
 
@@ -398,7 +527,7 @@ class PuliziaGenerator(sim.Component):
         while True:
             if not self.pul_running:
                 Pulizia()
-            yield self.hold(0.1)
+            yield self.hold(1)
 
 
 class Pulizia(sim.Component):
@@ -442,7 +571,7 @@ class Pulizia(sim.Component):
                 cono.posizione = 'MAG'
                 cono.coda_pul = False
                 stato.dict_timestamp_pulizie =\
-                    module_stats.aggiorna_timestamp_pulizie(
+                    module_stats_reeng.aggiorna_timestamp_pulizie(
                         self, stato.dict_timestamp_pulizie)
                 break
         self.passivate()
@@ -452,15 +581,24 @@ class Pulizia(sim.Component):
 # --------------------------------------------------
 h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
+n_mission100 = 0
 
-# TEMPORANEI
-error = 0
+picking_list_sl = []
 
 env = sim.Environment()
 
+#  states
+dos_done = sim.State('dos_done')
+free100 = sim.State('free100')
+#  -------------
+
 #  DosaggioGenerator()
+DosaggioGeneratorAuto()
+Mir100Manager()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
+forklift = sim.Resource('Forklift', capacity=1)
+mir100 = sim.Resource('MIR100', capacity=1)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
@@ -488,7 +626,6 @@ pulizia_generator = PuliziaGenerator()
 stazione_pulizia = sim.Resource('Stazione di pulizia coni')
 
 env.run(till=(60 * h_sim))
-print('ERRORI RIORDINO LC', error)
 # -------------------------------------------
 
 # verifica correttezza estrusori
@@ -510,11 +647,11 @@ df_timestamp_pulizie = pd.DataFrame.from_dict(
 df_timestamp_mir500 = pd.DataFrame.from_dict(
     stato.dict_timestamp_mir500).sort_values('n_mission')
 
-module_stats.plot_throughput(stato.dict_throughput)
+module_stats_reeng.plot_throughput(stato.dict_throughput)
 
 print('TEMPO DI RUN ', datetime.now() - start)
 
-module_stats.plot_quetot(stato.dict_elements)
+module_stats_reeng.plot_quetot(stato.dict_elements)
 
 tot_buff = 0
 for b in obj_buffer:
