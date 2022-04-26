@@ -72,6 +72,12 @@ d_mir100_sl = sim.Normal(
 db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
                            lowerbound=2, upperbound=8)
 #  --------------------
+class OrologioSim(sim.Component):
+    def process(self):
+        while True:
+            orologio.trigger(max=1)
+            yield self.hold(1)
+
 
 class DosaggioGeneratorAuto(sim.Component):
     def process(self):
@@ -108,7 +114,7 @@ class FleetManager(sim.Component):
         global stato, fl_list, mir100_list
         while True:
             if len(self.picking_list) != 0:
-                code = self.picking_list.pop()
+                code = self.picking_list.pop(0)
                 if code in stato.df_stock_mp.index:
                     departed = False
                     while not departed:
@@ -121,37 +127,53 @@ class FleetManager(sim.Component):
                                         if stato.df_stock_mp.loc[remove, 'stato'] == 5:
                                             forklift.remove_code = remove
                                             forklift.pick_code = code
-                                            print(code, self.picking_list)
+                                            print(remove, code, self.picking_list)
+                                            stato.df_stock_mp.loc[remove, 'zona'] = 'H'
                                             stato.df_stock_mp.loc[code, 'zona'] = 'H'
                                             stato.df_stock_mp.loc[code, 'stato'] = 2
                                             forklift.activate()
                                             departed = True
                                             break
-                                    yield self.hold(1)
                                     break
+                            yield self.hold(1)
                         elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
-                              and stato.df_stock_mp[code, 'stato'] == 5
+                              and stato.df_stock_mp.loc[code, 'stato'] == 5
                               and code in staz_auto.dosaggio.materie_prime.keys()):
-                            stato.df_stock_mp.loc[remove, 'stato'] == 3
-                        
+                            stato.df_stock_mp.loc[code, 'stato'] = 3
+                            print(code, 'messo a', stato.df_stock_mp.loc[code, 'stato'])
+                            departed = True
+                        else:
+                            yield self.hold(1)
+#staz_auto.dosaggio.materie_prime
                 else:
-                    if stato.df_stock_sl.loc[code, 'zona'] == 'M':
-                        for mir100 in mir100_list:
-                            if mir100.ispassive():
-                                mask_station = stato.df_stock_sl['zona'] == 'S'
-                                cod_staz = list(stato.df_stock_sl[mask_station].index)
-                                for remove in cod_staz:
-                                    if stato.df_stock_sl.loc[remove, 'stato'] == 5:
-                                        mir100.remove_code = remove
-                                        mir100.pick_code = code
-                                        stato.df_stock_sl.loc[code, 'zona'] = 'H'
-                                        stato.df_stock_sl.loc[code, 'stato'] = 2
-                                        #  self.picking_list.remove(code)
-                                        mir100.activate()
-                                        departed = True
-                                        break
-                                yield self.hold(1)
-                                break
+                    departed = False
+                    while not departed:
+                        if stato.df_stock_sl.loc[code, 'zona'] == 'M':
+                            for mir100 in mir100_list:
+                                if mir100.ispassive():
+                                    mask_station = stato.df_stock_sl['zona'] == 'S'
+                                    cod_staz = list(stato.df_stock_sl[mask_station].index)
+                                    for remove in cod_staz:
+                                        if stato.df_stock_sl.loc[remove, 'stato'] == 5:
+                                            mir100.remove_code = remove
+                                            mir100.pick_code = code
+                                            stato.df_stock_sl.loc[remove, 'zona'] = 'H'
+                                            stato.df_stock_sl.loc[code, 'zona'] = 'H'
+                                            stato.df_stock_sl.loc[code, 'stato'] = 2
+                                            #  self.picking_list.remove(code)
+                                            mir100.activate()
+                                            departed = True
+                                            break
+                                    break
+                            yield self.hold(1) ## questo dovrebbe salvarmi
+                        elif (stato.df_stock_sl.loc[code, 'zona'] == 'S'
+                              and stato.df_stock_sl.loc[code, 'stato'] == 5
+                              and code in staz_auto.dosaggio.materie_prime.keys()):
+                            stato.df_stock_sl.loc[code, 'stato'] = 3
+                            stato.df_stock_sl.loc[code, 'zona'] = 'S'
+                            departed = True
+                        else:
+                            yield self.hold(1)
             else:
                 yield self.hold(1)
 
@@ -514,7 +536,7 @@ class Staz_auto(sim.Component):
                     if len(self.dosaggio.materie_prime) == 0:
                         wait = False
                 else:
-                    yield self.hold(0.1)
+                    yield self.wait((orologio, 1, True))
             dos_done.trigger(max=1)
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
@@ -648,13 +670,15 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 300  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 
 env = sim.Environment()
+OrologioSim()
 
 #  states
+orologio = sim.State('orologio')
 dos_done = sim.State('dos_done')
 free100 = sim.State('free100')
 #  -------------
@@ -724,6 +748,7 @@ df_timestamp_mir500 = pd.DataFrame.from_dict(
 
 module_stats_reeng.plot_throughput(stato.dict_throughput)
 
+print('Tempo richiesto', h_sim * 60)
 print('TEMPO DI RUN ', datetime.now() - start)
 
 module_stats_reeng.plot_quetot(stato.dict_elements)
