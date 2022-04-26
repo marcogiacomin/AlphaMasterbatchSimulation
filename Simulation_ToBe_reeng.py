@@ -17,9 +17,9 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5
-t_scarico = 0.3
-t_manovra = 1
+t_carico = 0.5/2
+t_scarico = 0.3/2
+t_manovra = 1/2
 t_depall = 1
 #  ------------------
 
@@ -76,18 +76,21 @@ class OrologioSim(sim.Component):
     def process(self):
         while True:
             orologio.trigger(max=1)
-            yield self.hold(1)
+            yield self.hold(0.01)
 
 
 class DosaggioGeneratorAuto(sim.Component):
     def process(self):
         Dosaggio(staz_call=staz_auto)
-        yield self.hold(8)
+        yield self.wait((call_dos, 1, True))
+        Dosaggio(staz_call=staz_auto)
+        yield self.wait((call_dos, 1, True))
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
-            if 'D' in stato.df_coni['stato'].values:
+            if ('D' in stato.df_coni['stato'].values
+                and len(fleet_manager_forklift.picking_list) < 5):
                 Dosaggio(staz_call=staz_auto)
-                yield self.wait((dos_done, True, 1))
+                yield self.wait((picking_list_refreshed, 1, True))
             else:
                 yield self.wait((orologio, 1, True))
 
@@ -106,75 +109,84 @@ class DosaggioGenerator(sim.Component):
                 yield self.wait((orologio, 1, True))
 
 
-class FleetManager(sim.Component):
+class FleetManagerMIR(sim.Component):
+    def setup(self):
+        self.picking_list = []
+        
+    def process(self):
+        global stato, mir100_list
+        while True:
+            if len(self.picking_list) != 0:
+                code = self.picking_list.pop(0)
+                departed = False
+                while not departed:
+                    if stato.df_stock_sl.loc[code, 'zona'] == 'M':
+                        for mir100 in mir100_list:
+                            if mir100.ispassive():
+                                mask_station = stato.df_stock_sl['zona'] == 'S'
+                                cod_staz = list(stato.df_stock_sl[mask_station].index)
+                                for remove in cod_staz:
+                                    if stato.df_stock_sl.loc[remove, 'stato'] == 5:
+                                        mir100.remove_code = remove
+                                        mir100.pick_code = code
+                                        stato.df_stock_sl.loc[remove, 'zona'] = 'H'
+                                        stato.df_stock_sl.loc[code, 'zona'] = 'H'
+                                        stato.df_stock_sl.loc[code, 'stato'] = 2
+                                        mir100.activate()
+                                        departed = True
+                                        break
+                                break
+                        yield self.wait((orologio, 1, True))
+                    elif (stato.df_stock_sl.loc[code, 'zona'] == 'S'
+                          and stato.df_stock_sl.loc[code, 'stato'] == 5
+                          and code in staz_auto.dosaggio.materie_prime.keys()):
+                        stato.df_stock_sl.loc[code, 'stato'] = 3
+                        stato.df_stock_sl.loc[code, 'zona'] = 'S'
+                        departed = True
+                    else:
+                        yield self.wait((orologio, 1, True))
+            else:
+                yield self.wait((orologio, 1, True))
+
+class FleetManagerForklift(sim.Component):
     def setup(self):
         self.picking_list = []
         
     def process(self):
         global stato, fl_list, mir100_list
+        a = 0
         while True:
             if len(self.picking_list) != 0:
                 code = self.picking_list.pop(0)
-                if code in stato.df_stock_mp.index:
-                    departed = False
-                    while not departed:
-                        if stato.df_stock_mp.loc[code, 'zona'] == 'M':
-                            for forklift in fl_list:
-                                if forklift.ispassive():
-                                    mask_station = stato.df_stock_mp['zona'] == 'S'
-                                    cod_staz = list(stato.df_stock_mp[mask_station].index)
-                                    for remove in cod_staz:
-                                        if stato.df_stock_mp.loc[remove, 'stato'] == 5:
-                                            forklift.remove_code = remove
-                                            forklift.pick_code = code
-                                            print(remove, code, self.picking_list)
-                                            stato.df_stock_mp.loc[remove, 'zona'] = 'H'
-                                            stato.df_stock_mp.loc[code, 'zona'] = 'H'
-                                            stato.df_stock_mp.loc[code, 'stato'] = 2
-                                            forklift.activate()
-                                            departed = True
-                                            break
-                                    break
-                            yield self.wait((orologio, 1, True))
-                        elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
-                              and stato.df_stock_mp.loc[code, 'stato'] == 5
-                              and code in staz_auto.dosaggio.materie_prime.keys()):
-                            stato.df_stock_mp.loc[code, 'stato'] = 3
-                            print(code, 'messo a', stato.df_stock_mp.loc[code, 'stato'])
-                            departed = True
-                        else:
-                            yield self.wait((orologio, 1, True))
-#staz_auto.dosaggio.materie_prime
-                else:
-                    departed = False
-                    while not departed:
-                        if stato.df_stock_sl.loc[code, 'zona'] == 'M':
-                            for mir100 in mir100_list:
-                                if mir100.ispassive():
-                                    mask_station = stato.df_stock_sl['zona'] == 'S'
-                                    cod_staz = list(stato.df_stock_sl[mask_station].index)
-                                    for remove in cod_staz:
-                                        if stato.df_stock_sl.loc[remove, 'stato'] == 5:
-                                            mir100.remove_code = remove
-                                            mir100.pick_code = code
-                                            stato.df_stock_sl.loc[remove, 'zona'] = 'H'
-                                            stato.df_stock_sl.loc[code, 'zona'] = 'H'
-                                            stato.df_stock_sl.loc[code, 'stato'] = 2
-                                            #  self.picking_list.remove(code)
-                                            mir100.activate()
-                                            departed = True
-                                            break
-                                    break
-                            yield self.hold(1) ## questo dovrebbe salvarmi
-                        elif (stato.df_stock_sl.loc[code, 'zona'] == 'S'
-                              and stato.df_stock_sl.loc[code, 'stato'] == 5
-                              and code in staz_auto.dosaggio.materie_prime.keys()):
-                            stato.df_stock_sl.loc[code, 'stato'] = 3
-                            stato.df_stock_sl.loc[code, 'zona'] = 'S'
-                            departed = True
-                        else:
-                            yield self.wait((orologio, 1, True))
+                departed = False
+                while not departed:
+                    if stato.df_stock_mp.loc[code, 'zona'] == 'M':
+                        for forklift in fl_list:
+                            if forklift.ispassive():
+                                mask_station = stato.df_stock_mp['zona'] == 'S'
+                                cod_staz = list(stato.df_stock_mp[mask_station].index)
+                                for remove in cod_staz:
+                                    if stato.df_stock_mp.loc[remove, 'stato'] == 5:
+                                        forklift.remove_code = remove
+                                        forklift.pick_code = code
+                                        stato.df_stock_mp.loc[remove, 'zona'] = 'H'
+                                        stato.df_stock_mp.loc[code, 'zona'] = 'H'
+                                        stato.df_stock_mp.loc[code, 'stato'] = 2
+                                        forklift.activate()
+                                        departed = True
+                                        break
+                                break
+                        yield self.wait((orologio, 1, True))
+                    elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
+                          and stato.df_stock_mp.loc[code, 'stato'] == 5
+                          and code in staz_auto.dosaggio.materie_prime.keys()):
+                        stato.df_stock_mp.loc[code, 'stato'] = 3
+                        departed = True
+                    else:
+                        yield self.wait((orologio, 1, True))
             else:
+                print(a)
+                a += 1
                 yield self.wait((orologio, 1, True))
 
 
@@ -213,7 +225,6 @@ class Forklift(sim.Component):
 
             stato.df_stock_mp.loc[self.pick_code, 'stato'] = 3
             stato.df_stock_mp.loc[self.pick_code, 'zona'] = 'S'
-            print('consegnato', self.pick_code)
             
             self.pick_code = None
 
@@ -355,6 +366,8 @@ class Dosaggio(sim.Component):
 
         elif self.staz_call.n == 'SA':
             stato.elements += 1
+            stato.df_OP.loc[[self.ID], 'stato'] = 'C'
+            call_dos.trigger(max=1)
             Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
                             dosaggio=self)
             yield self.passivate()
@@ -363,8 +376,12 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'DOS'
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         
-        fleet_manager.picking_list.extend(self.materie_prime.keys())
-        
+        for c in self.materie_prime.keys():
+            if c in stato.df_stock_mp.index:
+                fleet_manager_forklift.picking_list.append(c)
+            else:
+                fleet_manager_mir.picking_list.append(c)
+        picking_list_refreshed.trigger(max=1)
         if self.staz_call.ispassive():
             self.staz_call.activate()
         yield self.passivate()
@@ -486,7 +503,7 @@ class Staz_auto(sim.Component):
                     if stato.tool != 2:
                         t += stato.t_tool/60
                         stato.tool = 2
-                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 2) - 1)
+                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 3) - 1)
                           * stato.t_mass_v/60)
                     t += 2 * (stato.t_mass_f/60)
                     return(t, mp)
@@ -521,11 +538,8 @@ class Staz_auto(sim.Component):
                     if mp in stato.df_stock_mp.index:
                         stato.df_stock_mp.loc[mp,
                                               'qta'] -= self.dosaggio.materie_prime[mp]
-                    else:
-                        free100.trigger(max=1)
                         
                     del self.dosaggio.materie_prime[mp]
-                    print('dosato', mp)
                     if mp in stato.df_stock_mp.index:
                         stato.df_stock_mp.loc[mp, 'stato'] = 5
                         stato.df_stock_mp.loc[mp, 'zona'] = 'S'
@@ -537,7 +551,6 @@ class Staz_auto(sim.Component):
                         wait = False
                 else:
                     yield self.wait((orologio, 1, True))
-            dos_done.trigger(max=1)
             #  --------------------
             self.dosaggio.fine_dosatura = env.now()
             print('Dosato {} '.format(self.dosaggio.ID), env.now(),
@@ -670,7 +683,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 300  # totale di ore che si vogliono simulare
+h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 
@@ -679,8 +692,8 @@ OrologioSim()
 
 #  states
 orologio = sim.State('orologio')
-dos_done = sim.State('dos_done')
-free100 = sim.State('free100')
+call_dos = sim.State('call_dos')
+picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
 #  DosaggioGenerator()
@@ -688,7 +701,8 @@ DosaggioGeneratorAuto()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
-fleet_manager = FleetManager()
+fleet_manager_forklift = FleetManagerForklift()
+fleet_manager_mir = FleetManagerMIR()
 
 FL1 = Forklift(name='FL1')
 FL2 = Forklift(name='FL2')
@@ -770,6 +784,8 @@ a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 sat_misc = miscelatore.occupancy.mean()
 sat_hand_2 = handlingest.occupancy.mean()
 sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
+sat_fleet_fork = fleet_manager_forklift.status.print_histogram(values=True, as_str=True)
+sat_fleet_mir = fleet_manager_mir.status.print_histogram(values=True, as_str=True)
 sat_mir500_coni = mir500_coni.occupancy.mean()
 
 sat1 = E1.status.print_histogram(values=True, as_str=True)
@@ -781,3 +797,8 @@ sat6 = E6.status.print_histogram(values=True, as_str=True)
 sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
+satFL1 = FL1.status.print_histogram(values=True, as_str=True)
+satFL2 = FL2.status.print_histogram(values=True, as_str=True)
+satFL2 = FL2.status.print_histogram(values=True, as_str=True)
+satFL3 = FL3.status.print_histogram(values=True, as_str=True)
+satMIR1 = MIR1.status.print_histogram(values=True, as_str=True)
