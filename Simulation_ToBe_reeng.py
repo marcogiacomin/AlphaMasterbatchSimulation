@@ -89,7 +89,7 @@ class DosaggioGeneratorAuto(sim.Component):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((dos_done, True, 1))
             else:
-                yield self.standby()
+                yield self.wait((orologio, 1, True))
 
 class DosaggioGenerator(sim.Component):
     def process(self):
@@ -103,7 +103,7 @@ class DosaggioGenerator(sim.Component):
                 Dosaggio(staz_call=s)
                 yield self.hold(db_interarrival.sample())
             else:
-                yield self.standby()
+                yield self.wait((orologio, 1, True))
 
 
 class FleetManager(sim.Component):
@@ -135,7 +135,7 @@ class FleetManager(sim.Component):
                                             departed = True
                                             break
                                     break
-                            yield self.hold(1)
+                            yield self.wait((orologio, 1, True))
                         elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                               and stato.df_stock_mp.loc[code, 'stato'] == 5
                               and code in staz_auto.dosaggio.materie_prime.keys()):
@@ -143,7 +143,7 @@ class FleetManager(sim.Component):
                             print(code, 'messo a', stato.df_stock_mp.loc[code, 'stato'])
                             departed = True
                         else:
-                            yield self.hold(1)
+                            yield self.wait((orologio, 1, True))
 #staz_auto.dosaggio.materie_prime
                 else:
                     departed = False
@@ -173,9 +173,9 @@ class FleetManager(sim.Component):
                             stato.df_stock_sl.loc[code, 'zona'] = 'S'
                             departed = True
                         else:
-                            yield self.hold(1)
+                            yield self.wait((orologio, 1, True))
             else:
-                yield self.hold(1)
+                yield self.wait((orologio, 1, True))
 
 
 class Forklift(sim.Component):
@@ -379,7 +379,7 @@ class Dosaggio(sim.Component):
 
         if self.estrusore not in ['E5', 'E9']:
             while handlingest.claimers().length() != 0:
-                yield self.standby()
+                yield self.wait((orologio, 1, True))
         self.release()
         self.fine_miscelazione = env.now()
         print('miscelato ', env.now(),
@@ -451,7 +451,7 @@ class Stazione(sim.Component):
                                                         'staz.dosaggio')
             # attiva solo se la coda del miscelatore è vuota
             while miscelatore.claimers().length() >= 2:
-                yield self.standby()
+                yield self.wait((orologio, 1, True))
             self.dosaggio.activate()
 
 
@@ -698,8 +698,8 @@ MIR1 = Mir100(name='MIR1')
 MIR2 = Mir100(name='MIR1')
 MIR3 = Mir100(name='MIR1')
 
-fl_list = [FL1, FL2, FL3, FL4]
-mir100_list = [MIR1, MIR2, MIR3]
+fl_list = [FL1, FL2]
+mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
