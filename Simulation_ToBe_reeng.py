@@ -690,14 +690,16 @@ mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
 fleet_manager = FleetManager()
 
-fl1 = Forklift(name='FL1')
-fl2 = Forklift(name='FL2')
-fl3 = Forklift(name='FL3')
-fl4 = Forklift(name='FL4')
-mir1 = Mir100(name='MIR1')
+FL1 = Forklift(name='FL1')
+FL2 = Forklift(name='FL2')
+FL3 = Forklift(name='FL3')
+FL4 = Forklift(name='FL4')
+MIR1 = Mir100(name='MIR1')
+MIR2 = Mir100(name='MIR1')
+MIR3 = Mir100(name='MIR1')
 
-fl_list = [fl1]
-mir100_list = [mir1]
+fl_list = [FL1, FL2, FL3, FL4]
+mir100_list = [MIR1, MIR2, MIR3]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
