@@ -183,10 +183,10 @@ class FleetManagerForklift(sim.Component):
                         stato.df_stock_mp.loc[code, 'stato'] = 3
                         departed = True
                     else:
+                        print(a)
+                        a += 1
                         yield self.wait((orologio, 1, True))
             else:
-                print(a)
-                a += 1
                 yield self.wait((orologio, 1, True))
 
 
