@@ -68,6 +68,8 @@ db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
 
 class DosaggioGeneratorAuto(sim.Component):
     def process(self):
+        Dosaggio(staz_call=staz_auto)
+        yield self.hold(5)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
@@ -418,13 +420,13 @@ class Mission500_coni(sim.Component):
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_pul.sample())
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
         if self.mission == 'staz_auto dosaggio':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_staz.sample())
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
