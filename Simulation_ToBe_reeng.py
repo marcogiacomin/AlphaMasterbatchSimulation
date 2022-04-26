@@ -345,9 +345,8 @@ class Staz_auto(sim.Component):
                     stato.df_stock_mp.loc[x, 'zona'] = 'S'
                     stato.df_stock_mp.loc[x, 'stato'] = 3
                 else:
-                    stato.df_stock_sl.loc[x, 'stato'] = 1
-                    picking_list_sl.append(x)
-            print(picking_list_sl, self.dosaggio.estrusore, env.now())        
+                    stato.df_stock_sl.loc[x, 'zona'] = 'S'
+                    stato.df_stock_sl.loc[x, 'stato'] = 3     
 
             self.dosaggio.cono.posizione = 'DOS ' + self.n
             self.dosaggio.inizio_dosatura = env.now()
@@ -377,8 +376,10 @@ class Staz_auto(sim.Component):
                     del self.dosaggio.materie_prime[mp]
                     if mp in stato.df_stock_mp.index:
                             stato.df_stock_mp.loc[mp, 'stato'] = 5
+                            stato.df_stock_mp.loc[mp, 'zona'] = 'M'
                     else:
                         stato.df_stock_sl.loc[mp, 'stato'] = 5
+                        stato.df_stock_mp.loc[mp, 'zona'] = 'M'
 
                     if len(self.dosaggio.materie_prime) == 0:
                         wait = False
@@ -394,65 +395,6 @@ class Staz_auto(sim.Component):
                                                         self.dosaggio.kg,
                                                         'staz.dosaggio')
             self.dosaggio.activate()
-
-
-class Mir100Manager(sim.Component):
-    def setup(self):
-        self.pick_code = None
-        mask_s = stato.df_stock_sl['zona'] == 'S'
-        self.remove_code = stato.df_stock_sl[mask_s].index[0]
-        
-        self.veicolo = 'MIR100'
-        self.n_mission = 0
-        
-        self.richiesta = env.now()
-        self.partenza = 0
-        self.scarico = 0
-
-    
-    def process(self):
-        global picking_list_sl
-        while True:
-            #  ------------
-            if len(picking_list_sl) > 0:
-                #  seize resource
-                yield self.request(mir100)
-                self.n_mission += 1
-                for x in picking_list_sl:
-                    if (x in stato.df_stock_sl.index
-                        and stato.df_stock_sl.loc[x, 'zona'] == 'M'
-                        and stato.df_stock_sl.loc[x, 'stato'] == 1):
-                        self.pick_code = x
-                        picking_list_sl.remove(self.pick_code)
-                        #  inizia con la missione
-                        self.partenza = env.now()
-                        stato.df_stock_sl.loc[self.pick_code, 'stato'] = 2
-                        if self.remove_code is not None:
-                            stato.df_stock_sl.loc[self.remove_code, 'stato'] = 6
-                        yield self.hold(db_mir100_sl.sample())
-                        #  yield self.hold(0)
-                        if self.remove_code is not None:
-                            stato.df_stock_sl.loc[self.remove_code, 'zona'] = 'M'
-                            stato.df_stock_sl.loc[self.remove_code, 'stato'] = None
-                        yield self.hold(db_mir100_sl.sample())
-                        #  yield self.hold(0)
-        
-                        stato.df_stock_sl.loc[self.pick_code, 'stato'] = 3
-                        stato.df_stock_sl.loc[self.pick_code, 'zona'] = 'S'
-                        self.scarico = env.now()
-                        stato.dict_timestamp_picking = module_stats_reeng.aggiorna_timestamp_picking(
-                            self, stato.dict_timestamp_picking)
-                        print('quiiiiiiiiiiiiiiiii', staz_auto.dosaggio.estrusore)
-                        yield self.wait((free100, 1, True))
-                        print('quaaaaaaaaaaaaaaaaaaaa', staz_auto.dosaggio.estrusore)
-                        self.remove_code = self.pick_code
-                        self.pick_code = None
-                        self.release()
-                        break
-                    else:
-                        yield self.standby()    
-            else:
-                yield self.hold(1)
 
 
 class Mission500_coni(sim.Component):
@@ -594,11 +536,8 @@ free100 = sim.State('free100')
 
 #  DosaggioGenerator()
 DosaggioGeneratorAuto()
-Mir100Manager()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
-forklift = sim.Resource('Forklift', capacity=1)
-mir100 = sim.Resource('MIR100', capacity=1)
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
@@ -663,3 +602,19 @@ tot_ques = len(handlingest.claimers()
                + miscelatore.requesters())
 
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
+
+# STATISTICHE SULLA SATURAZIONE DEI SERVER
+sat_misc = miscelatore.occupancy.mean()
+sat_hand_2 = handlingest.occupancy.mean()
+sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
+sat_mir500_coni = mir500_coni.occupancy.mean()
+
+sat1 = E1.status.print_histogram(values=True, as_str=True)
+sat2 = E2.status.print_histogram(values=True, as_str=True)
+sat3 = E3.status.print_histogram(values=True, as_str=True)
+sat4 = E4.status.print_histogram(values=True, as_str=True)
+sat5 = E5.status.print_histogram(values=True, as_str=True)
+sat6 = E6.status.print_histogram(values=True, as_str=True)
+sat7 = E7.status.print_histogram(values=True, as_str=True)
+sat8 = E8.status.print_histogram(values=True, as_str=True)
+sat9 = E9.status.print_histogram(values=True, as_str=True)
