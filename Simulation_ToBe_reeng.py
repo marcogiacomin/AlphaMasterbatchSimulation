@@ -730,7 +730,7 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
-                yield self.hold(0)
+                yield self.hold(db_pulizia.sample())
                 self.fine_pulizia = env.now()
                 cono.color = 0
                 cono.valcrom = 0
@@ -782,7 +782,7 @@ MIR1 = Mir100(name='MIR1')
 MIR2 = Mir100(name='MIR1')
 MIR3 = Mir100(name='MIR1')
 
-fl_list = [FL1, FL2, FL3]
+fl_list = [FL1]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
