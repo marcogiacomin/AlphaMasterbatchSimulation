@@ -5,7 +5,7 @@ import module_que_by_est
 import pandas as pd
 import salabim as sim
 from scipy import stats
-from random import random
+from random import random, randrange
 import math
 
 from module_class_cono import obj_coni
@@ -159,15 +159,17 @@ class FleetManagerForklift(sim.Component):
         while True:
             if len(self.picking_list) != 0:
                 code = self.picking_list.pop(0)
+                print('codice poppato', code)
                 departed = False
                 while not departed:
                     if stato.df_stock_mp.loc[code, 'zona'] == 'M':
                         for forklift in fl_list:
-                            if forklift.ispassive():
+                            if forklift.ispassive(): # non trova forklift liberi
                                 mask_station = stato.df_stock_mp['zona'] == 'S'
                                 cod_staz = list(stato.df_stock_mp[mask_station].index)
-                                for remove in cod_staz:
-                                    if stato.df_stock_mp.loc[remove, 'stato'] == 5:
+                                for remove in cod_staz: #  non trova codici da rimuovere
+                                    if (stato.df_stock_mp.loc[remove, 'stato'] == 5
+                                        and remove not in staz_auto.dosaggio.materie_prime.keys()): 
                                         forklift.remove_code = remove
                                         forklift.pick_code = code
                                         stato.df_stock_mp.loc[remove, 'zona'] = 'H'
@@ -177,7 +179,8 @@ class FleetManagerForklift(sim.Component):
                                         departed = True
                                         break
                                 break
-                        yield self.wait((orologio, 1, True))
+                        if not departed:
+                            yield self.wait((orologio, 1, True))
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 5
                           and code in staz_auto.dosaggio.materie_prime.keys()):
@@ -214,6 +217,7 @@ fleet_manager_forklift.picking_list
 staz_auto.save_list
 staz_auto.saved
 staz_auto.dosaggio.materie_prime
+staz_auto.dosaggio.ID
 que_staz_dos[0].materie_prime
 '''
 
@@ -523,19 +527,21 @@ class Staz_auto(sim.Component):
                         condition = (stato.df_stock_sl.loc[mp, 'zona'] == 'S'
                                      and stato.df_stock_sl.loc[mp, 'stato'] == 3)
                     if condition:
-                        
+                        self.save_list.remove(mp)
                         if self.dosaggio.materie_prime[mp] <= 2.5:
                             t += stato.t_tool/60
-                            t += ((math.floor(self.dosaggio.materie_prime[mp] / 1) - 1)
-                                  * stato.t_pig_v/60)
+                            t += ((math.floor(self.dosaggio.materie_prime[mp]
+                                              / (1 * (randrange(80, 100) / 100)) - 1)
+                                  * stato.t_pig_v/60))
                             t += 2 * (stato.t_pig_f / 60)
                             return(t, mp)
                         else:
                             if stato.tool != 2:
                                 t += stato.t_tool/60
                                 stato.tool = 2
-                            t += ((math.floor(self.dosaggio.materie_prime[mp] / 3) - 1)
-                                  * stato.t_mass_v/60)
+                            t += ((math.floor(self.dosaggio.materie_prime[mp]
+                                              / (3 * (randrange(80, 100) / 100)) - 1)
+                                  * stato.t_mass_v/60))
                             t += 2 * (stato.t_mass_f/60)
                             return(t, mp)
         
@@ -550,16 +556,18 @@ class Staz_auto(sim.Component):
             if condition:
                 if self.dosaggio.materie_prime[mp] <= 2.5:
                     t += stato.t_tool/60
-                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 1) - 1)
-                          * stato.t_pig_v/60)
+                    t += ((math.floor(self.dosaggio.materie_prime[mp]
+                                      / (1 * (randrange(80, 100) / 100)) - 1)
+                          * stato.t_pig_v/60))
                     t += 2 * (stato.t_pig_f / 60)
                     return(t, mp)
                 else:
                     if stato.tool != 2:
                         t += stato.t_tool/60
                         stato.tool = 2
-                    t += ((math.floor(self.dosaggio.materie_prime[mp] / 3) - 1)
-                          * stato.t_mass_v/60)
+                    t += ((math.floor(self.dosaggio.materie_prime[mp]
+                                      / (3 * (randrange(80, 100) / 100)) - 1)
+                          * stato.t_mass_v/60))
                     t += 2 * (stato.t_mass_f/60)
                     return(t, mp)
         return(None)
@@ -745,7 +753,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 24 * 5  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 

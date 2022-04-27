@@ -12,7 +12,7 @@ def calc_TD(d, secondi_cambio_tool, mass_v, mass_f, pig_v, pig_f):
     t_pig_f = pig_f / 60
 
     pal_pig = 1
-    pal_mass = 3
+    pal_mass = 2
 
     for i in range(len(d['statino'])):
         tmp_TD = 0
