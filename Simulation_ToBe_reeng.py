@@ -88,7 +88,7 @@ class DosaggioGeneratorAuto(sim.Component):
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if ('D' in stato.df_coni['stato'].values
-                and len(fleet_manager_forklift.picking_list) < 5):
+                and len(fleet_manager_forklift.picking_list) < 6):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((picking_list_refreshed, 1, True))
             else:
@@ -155,6 +155,7 @@ class FleetManagerForklift(sim.Component):
     def process(self):
         global stato, fl_list, mir100_list
         a = 0
+        b = 0
         while True:
             if len(self.picking_list) != 0:
                 code = self.picking_list.pop(0)
@@ -182,13 +183,39 @@ class FleetManagerForklift(sim.Component):
                           and code in staz_auto.dosaggio.materie_prime.keys()):
                         stato.df_stock_mp.loc[code, 'stato'] = 3
                         departed = True
+                    elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
+                          and stato.df_stock_mp.loc[code, 'stato'] == 4
+                          and len(staz_auto.saved) <= 2):
+                        staz_auto.save_list.append(code)
+                        departed = True
+                    elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
+                          and stato.df_stock_mp.loc[code, 'stato'] == 3
+                          and len(staz_auto.saved) <= 2):
+                        staz_auto.save_list.append(code)
+                        stato.df_stock_mp.loc[code, 'statonext'] = True
+                        departed = True
+                    elif (stato.df_stock_mp.loc[code, 'zona'] == 'H'
+                          and stato.df_stock_mp.loc[code, 'stato'] == 2
+                          and len(staz_auto.saved) <= 2):
+                        staz_auto.save_list.append(code)
+                        stato.df_stock_mp.loc[code, 'statonext'] = True
+                        departed = True
                     else:
-                        print(a)
+                        print('a', a)
                         a += 1
                         yield self.wait((orologio, 1, True))
             else:
+                print('b', b)
+                b += 1
                 yield self.wait((orologio, 1, True))
 
+'''
+fleet_manager_forklift.picking_list
+staz_auto.save_list
+staz_auto.saved
+staz_auto.dosaggio.materie_prime
+que_staz_dos[0].materie_prime
+'''
 
 class Forklift(sim.Component):
     def setup(self, name=None):
@@ -477,18 +504,46 @@ class Staz_auto(sim.Component):
         self.n = n
         self.que = que_staz_dos
         self.dosaggio = None
+        self.save_list = []
+        self.saved = []
 
     def weigh(self):
         global stato
         t = 0
         condition = False
         
-        #  print('MI è RIMASTO DA DOSARE', list(self.dosaggio.materie_prime.keys()), self.dosaggio.estrusore)
+        if len(self.save_list) != 0:
+            for mp in self.save_list:
+                if mp in self.dosaggio.materie_prime:
+                    if (mp in stato.df_stock_mp.index
+                        and not stato.df_stock_mp.loc[mp, 'statonext']):
+                        condition = (stato.df_stock_mp.loc[mp, 'zona'] == 'S'
+                                     and stato.df_stock_mp.loc[mp, 'stato'] == 3)
+                    elif mp in stato.df_stock_sl.index:
+                        condition = (stato.df_stock_sl.loc[mp, 'zona'] == 'S'
+                                     and stato.df_stock_sl.loc[mp, 'stato'] == 3)
+                    if condition:
+                        
+                        if self.dosaggio.materie_prime[mp] <= 2.5:
+                            t += stato.t_tool/60
+                            t += ((math.floor(self.dosaggio.materie_prime[mp] / 1) - 1)
+                                  * stato.t_pig_v/60)
+                            t += 2 * (stato.t_pig_f / 60)
+                            return(t, mp)
+                        else:
+                            if stato.tool != 2:
+                                t += stato.t_tool/60
+                                stato.tool = 2
+                            t += ((math.floor(self.dosaggio.materie_prime[mp] / 3) - 1)
+                                  * stato.t_mass_v/60)
+                            t += 2 * (stato.t_mass_f/60)
+                            return(t, mp)
+        
         for mp in self.dosaggio.materie_prime:
             if mp in stato.df_stock_mp.index:
                 condition = (stato.df_stock_mp.loc[mp, 'zona'] == 'S'
                              and stato.df_stock_mp.loc[mp, 'stato'] == 3)
-            else:
+            elif mp in stato.df_stock_sl.index:
                 condition = (stato.df_stock_sl.loc[mp, 'zona'] == 'S'
                              and stato.df_stock_sl.loc[mp, 'stato'] == 3)
 
@@ -514,7 +569,9 @@ class Staz_auto(sim.Component):
         while True:
             while len(que_staz_dos) == 0:
                 yield self.passivate()
-            self.dosaggio = que_staz_dos.pop() 
+            self.dosaggio = que_staz_dos.pop()
+            stato.df_stock_mp['statonext'] = False
+            self.saved.clear()
 
             self.dosaggio.cono.posizione = 'DOS ' + self.n
             self.dosaggio.inizio_dosatura = env.now()
@@ -541,8 +598,13 @@ class Staz_auto(sim.Component):
                         
                     del self.dosaggio.materie_prime[mp]
                     if mp in stato.df_stock_mp.index:
-                        stato.df_stock_mp.loc[mp, 'stato'] = 5
-                        stato.df_stock_mp.loc[mp, 'zona'] = 'S'
+                        if mp not in self.save_list:
+                            stato.df_stock_mp.loc[mp, 'stato'] = 5
+                            stato.df_stock_mp.loc[mp, 'zona'] = 'S'
+                        else:
+                            stato.df_stock_mp.loc[mp, 'stato'] = 3
+                            stato.df_stock_mp.loc[mp, 'zona'] = 'S'
+                            self.saved.append(mp)
                     else:
                         stato.df_stock_sl.loc[mp, 'stato'] = 5
                         stato.df_stock_sl.loc[mp, 'zona'] = 'S'
@@ -712,7 +774,7 @@ MIR1 = Mir100(name='MIR1')
 MIR2 = Mir100(name='MIR1')
 MIR3 = Mir100(name='MIR1')
 
-fl_list = [FL1, FL2]
+fl_list = [FL1, FL2, FL3]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
