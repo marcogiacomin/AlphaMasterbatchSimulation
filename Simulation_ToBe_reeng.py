@@ -82,13 +82,11 @@ class OrologioSim(sim.Component):
 class DosaggioGeneratorAuto(sim.Component):
     def process(self):
         Dosaggio(staz_call=staz_auto)
-        yield self.wait((call_dos, 1, True))
-        Dosaggio(staz_call=staz_auto)
-        yield self.wait((call_dos, 1, True))
+        yield self.wait((picking_list_refreshed, 1, True))
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if ('D' in stato.df_coni['stato'].values
-                and len(fleet_manager_forklift.picking_list) < 6):
+                and len(fleet_manager_forklift.picking_list) < 4):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((picking_list_refreshed, 1, True))
             else:
@@ -151,6 +149,17 @@ class FleetManagerMIR(sim.Component):
 class FleetManagerForklift(sim.Component):
     def setup(self):
         self.picking_list = []
+    
+    def count_overlap(self):
+        global stato
+        total = 0
+        mask_station = stato.df_stock_mp['zona'] == 'S'
+        cod_staz = list(stato.df_stock_mp[mask_station].index)
+        for c in cod_staz:
+            if (stato.df_stock_mp.loc[c, 'stato'] == 3
+                and c not in staz_auto.dosaggio.materie_prime.keys()):
+                total += 1
+        return(total)
         
     def process(self):
         global stato, fl_list, mir100_list
@@ -159,7 +168,6 @@ class FleetManagerForklift(sim.Component):
         while True:
             if len(self.picking_list) != 0:
                 code = self.picking_list.pop(0)
-                print('codice poppato', code)
                 departed = False
                 while not departed:
                     if stato.df_stock_mp.loc[code, 'zona'] == 'M':
@@ -180,6 +188,13 @@ class FleetManagerForklift(sim.Component):
                                         break
                                 break
                         if not departed:
+                            mask_station = stato.df_stock_mp['zona'] == 'S'
+                            cod_staz = list(stato.df_stock_mp[mask_station].index)
+                            for c in cod_staz:
+                                if (stato.df_stock_mp.loc[code, 'zona'] == 'S'
+                                      and stato.df_stock_mp.loc[code, 'stato'] == 5
+                                      and code in staz_auto.dosaggio.materie_prime.keys()):
+                                    stato.df_stock_mp.loc[code, 'stato'] = 3
                             yield self.wait((orologio, 1, True))
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 5
@@ -188,18 +203,18 @@ class FleetManagerForklift(sim.Component):
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 4
-                          and len(staz_auto.saved) <= 2):
+                          and self.count_overlap() <= 2):
                         staz_auto.save_list.append(code)
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 3
-                          and len(staz_auto.saved) <= 2):
+                          and self.count_overlap() <= 2):
                         staz_auto.save_list.append(code)
                         stato.df_stock_mp.loc[code, 'statonext'] = True
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'H'
                           and stato.df_stock_mp.loc[code, 'stato'] == 2
-                          and len(staz_auto.saved) <= 2):
+                          and self.count_overlap() <= 2):
                         staz_auto.save_list.append(code)
                         stato.df_stock_mp.loc[code, 'statonext'] = True
                         departed = True
@@ -398,7 +413,7 @@ class Dosaggio(sim.Component):
         elif self.staz_call.n == 'SA':
             stato.elements += 1
             stato.df_OP.loc[[self.ID], 'stato'] = 'C'
-            call_dos.trigger(max=1)
+            
             Mission500_coni(cono=self.cono, mission='staz_auto dosaggio',
                             dosaggio=self)
             yield self.passivate()
@@ -629,6 +644,7 @@ class Staz_auto(sim.Component):
                                                         env.now(),
                                                         self.dosaggio.kg,
                                                         'staz.dosaggio')
+            call_dos.trigger(max=1)
             self.dosaggio.activate()
 
 
@@ -753,7 +769,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24 * 5  # totale di ore che si vogliono simulare
+h_sim = 24 * 10  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 
@@ -782,7 +798,7 @@ MIR1 = Mir100(name='MIR1')
 MIR2 = Mir100(name='MIR1')
 MIR3 = Mir100(name='MIR1')
 
-fl_list = [FL1]
+fl_list = [FL1, FL2]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
