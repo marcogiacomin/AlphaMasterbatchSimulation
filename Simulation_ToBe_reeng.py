@@ -79,7 +79,7 @@ class OrologioSim(sim.Component):
             yield self.hold(0.01)
 
 
-class DosaggioGeneratorAuto(sim.Component):
+'''class DosaggioGeneratorAuto(sim.Component):
     def process(self):
         Dosaggio(staz_call=staz_auto)
         yield self.wait((picking_list_refreshed, 1, True))
@@ -90,11 +90,24 @@ class DosaggioGeneratorAuto(sim.Component):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((picking_list_refreshed, 1, True))
             else:
+                yield self.wait((orologio, 1, True))'''
+                
+class DosaggioGeneratorAutoNoPicking(sim.Component):
+    def process(self):
+        Dosaggio(staz_call=staz_auto)
+        yield self.hold(4)
+        while True:
+            stato.df_coni = module_class_cono.update_df_coni(obj_coni)
+            if ('D' in stato.df_coni['stato'].values):
+                Dosaggio(staz_call=staz_auto)
+                yield self.wait((call_dos, 1, True))
+            else:
                 yield self.wait((orologio, 1, True))
+                
 
 class DosaggioGenerator(sim.Component):
     def process(self):
-        yield self.hold(10)
+        yield self.hold(8)
         while True:
             stato.df_coni = module_class_cono.update_df_coni(obj_coni)
             if 'D' in stato.df_coni['stato'].values:
@@ -244,8 +257,8 @@ que_staz_dos[0].materie_prime
 '''
 
 class Forklift(sim.Component):
-    def setup(self, name=None):
-        self.n = name
+    def setup(self, n):
+        self.n = n
         self.remove_code = None
         self.pick_code = None
         
@@ -301,8 +314,8 @@ class Forklift(sim.Component):
 
 
 class Mir100(sim.Component):
-    def setup(self, name=None):
-        self.n = name
+    def setup(self, n):
+        self.n = n
         self.remove_code = None
         self.pick_code = None
         
@@ -460,12 +473,15 @@ class Dosaggio(sim.Component):
         self.cono.posizione = 'DOS'
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         
-        for c in self.materie_prime.keys():
-            if c in stato.df_stock_mp.index:
-                fleet_manager_forklift.picking_list.append(c)
-            else:
-                fleet_manager_mir.picking_list.append(c)
-        picking_list_refreshed.trigger(max=1)
+        #  in caso di utilizzo mir e forklift
+        '''if self.staz_call.n == 'SA':
+            for c in self.materie_prime.keys():
+                if c in stato.df_stock_mp.index:
+                    fleet_manager_forklift.picking_list.append(c)
+                else:
+                    fleet_manager_mir.picking_list.append(c)
+            picking_list_refreshed.trigger(max=1)'''
+            
         if self.staz_call.ispassive():
             self.staz_call.activate()
         yield self.passivate()
@@ -627,6 +643,16 @@ class Staz_auto(sim.Component):
             while len(que_staz_dos) == 0:
                 yield self.passivate()
             self.dosaggio = que_staz_dos.pop()
+            
+            #  in caso di NON utilizzo mir e forklift
+            for c in self.dosaggio.materie_prime.keys():
+                if c in stato.df_stock_mp.index:
+                    stato.df_stock_mp.loc[c, 'zona'] = 'S'
+                    stato.df_stock_mp.loc[c, 'stato'] = 3
+                else:
+                    stato.df_stock_sl.loc[c, 'zona'] = 'S'
+                    stato.df_stock_sl.loc[c, 'stato'] = 3
+
             stato.df_stock_mp['statonext'] = False
             self.saved.clear()
 
@@ -703,13 +729,15 @@ class Mission500_coni(sim.Component):
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(db_mir500_coni_pul.sample())
+            #  yield self.hold(db_mir500_coni_pul.sample())
+            yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
         if self.mission == 'staz_auto dosaggio':
             self.cono.posizione = 'HANDLING'
-            yield self.hold(db_mir500_coni_staz.sample())
+            #  yield self.hold(db_mir500_coni_staz.sample())
+            yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
@@ -751,7 +779,7 @@ class PuliziaGenerator(sim.Component):
         while True:
             if not self.pul_running:
                 Pulizia()
-            yield self.hold(5)
+            yield self.wait((orologio, True, 1))
 
 
 class Pulizia(sim.Component):
@@ -780,7 +808,8 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
-                yield self.hold(db_pulizia.sample())
+                #  yield self.hold(db_pulizia.sample())
+                yield self.hold(0)
                 self.fine_pulizia = env.now()
                 cono.color = 0
                 cono.valcrom = 0
@@ -803,7 +832,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24 * 10  # totale di ore che si vogliono simulare
+h_sim = 24  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 n_mission_forklift = 0
@@ -817,24 +846,24 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-DosaggioGenerator()
-DosaggioGeneratorAuto()
+#  DosaggioGenerator()
+DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
-fleet_manager_forklift = FleetManagerForklift()
-fleet_manager_mir = FleetManagerMIR()
+#fleet_manager_forklift = FleetManagerForklift()
+#fleet_manager_mir = FleetManagerMIR()
 
-FL1 = Forklift(name='FL1')
-FL2 = Forklift(name='FL2')
-FL3 = Forklift(name='FL3')
-FL4 = Forklift(name='FL4')
-MIR1 = Mir100(name='MIR1')
-MIR2 = Mir100(name='MIR1')
-MIR3 = Mir100(name='MIR1')
+FL1 = Forklift(n='FL1')
+FL2 = Forklift(n='FL2')
+FL3 = Forklift(n='FL3')
+FL4 = Forklift(n='FL4')
+MIR1 = Mir100(n='MIR1')
+MIR2 = Mir100(n='MIR2')
+MIR3 = Mir100(n='MIR3')
 
-fl_list = [FL1, FL2]
-mir100_list = [MIR1]
+#fl_list = [FL1, FL2]
+#mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
@@ -883,6 +912,10 @@ df_timestamp_pulizie = pd.DataFrame.from_dict(
 df_timestamp_mir500 = pd.DataFrame.from_dict(
     stato.dict_timestamp_mir500).sort_values('n_mission')
 
+# creazione Dataframe con tutti i timestamp picking
+df_timestamp_picking = pd.DataFrame.from_dict(
+    stato.dict_timestamp_picking).sort_values('n_mission')
+
 module_stats_reeng.plot_throughput(stato.dict_throughput)
 module_stats_reeng.plot_quetot(stato.dict_elements)
 
@@ -904,8 +937,8 @@ a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 sat_misc = miscelatore.occupancy.mean()
 sat_hand_2 = handlingest.occupancy.mean()
 sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
-sat_fleet_fork = fleet_manager_forklift.status.print_histogram(values=True, as_str=True)
-sat_fleet_mir = fleet_manager_mir.status.print_histogram(values=True, as_str=True)
+sat_staz1 = stazione1.status.print_histogram(values=True, as_str=True)
+sat_staz2 = stazione2.status.print_histogram(values=True, as_str=True)
 sat_mir500_coni = mir500_coni.occupancy.mean()
 
 sat1 = E1.status.print_histogram(values=True, as_str=True)

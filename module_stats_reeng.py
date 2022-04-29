@@ -38,7 +38,7 @@ def aggiorna_timestamp_dosaggi(self, dict_timestamp_dosaggi):
 
 
 def aggiorna_timestamp_picking(self, dict_timestamp_picking):
-    dict_timestamp_picking['veicolo'].append(self.name)
+    dict_timestamp_picking['veicolo'].append(self.n)
     dict_timestamp_picking['n_mission'].append(self.n_mission)
     dict_timestamp_picking['codice'].append(self.pick_code)
     dict_timestamp_picking['richiesta'].append(
