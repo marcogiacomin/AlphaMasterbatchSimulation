@@ -79,7 +79,7 @@ class OrologioSim(sim.Component):
             yield self.hold(0.01)
 
 
-'''class DosaggioGeneratorAuto(sim.Component):
+class DosaggioGeneratorAuto(sim.Component):
     def process(self):
         Dosaggio(staz_call=staz_auto)
         yield self.wait((picking_list_refreshed, 1, True))
@@ -90,7 +90,7 @@ class OrologioSim(sim.Component):
                 Dosaggio(staz_call=staz_auto)
                 yield self.wait((picking_list_refreshed, 1, True))
             else:
-                yield self.wait((orologio, 1, True))'''
+                yield self.wait((orologio, 1, True))
                 
 class DosaggioGeneratorAutoNoPicking(sim.Component):
     def process(self):
@@ -247,6 +247,7 @@ class FleetManagerForklift(sim.Component):
                 #b += 1
                 yield self.wait((orologio, 1, True))
 
+#  comandi per il debug in caso andasse in blocco
 '''
 fleet_manager_forklift.picking_list
 staz_auto.save_list
@@ -729,15 +730,15 @@ class Mission500_coni(sim.Component):
         self.partenza = env.now()
         if self.mission == 'stazione pulizia':
             self.cono.posizione = 'HANDLING'
-            #  yield self.hold(db_mir500_coni_pul.sample())
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_pul.sample())
+            #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.pulizia.activate()
         if self.mission == 'staz_auto dosaggio':
             self.cono.posizione = 'HANDLING'
-            #  yield self.hold(db_mir500_coni_staz.sample())
-            yield self.hold(0)
+            yield self.hold(db_mir500_coni_staz.sample())
+            #  yield self.hold(0)
             self.scarico = env.now()
             self.release()
             self.dosaggio.activate()
@@ -808,8 +809,8 @@ class Pulizia(sim.Component):
                 yield self.passivate()
                 cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
-                #  yield self.hold(db_pulizia.sample())
-                yield self.hold(0)
+                yield self.hold(db_pulizia.sample())
+                #  yield self.hold(0)
                 self.fine_pulizia = env.now()
                 cono.color = 0
                 cono.valcrom = 0
@@ -846,13 +847,13 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-#  DosaggioGenerator()
-DosaggioGeneratorAutoNoPicking()
+DosaggioGenerator()
+#DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
-#fleet_manager_forklift = FleetManagerForklift()
-#fleet_manager_mir = FleetManagerMIR()
+fleet_manager_forklift = FleetManagerForklift()
+fleet_manager_mir = FleetManagerMIR()
 
 FL1 = Forklift(n='FL1')
 FL2 = Forklift(n='FL2')
@@ -862,8 +863,8 @@ MIR1 = Mir100(n='MIR1')
 MIR2 = Mir100(n='MIR2')
 MIR3 = Mir100(n='MIR3')
 
-#fl_list = [FL1, FL2]
-#mir100_list = [MIR1]
+fl_list = [FL1, FL2]
+mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
 
