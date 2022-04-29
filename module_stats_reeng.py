@@ -38,11 +38,13 @@ def aggiorna_timestamp_dosaggi(self, dict_timestamp_dosaggi):
 
 
 def aggiorna_timestamp_picking(self, dict_timestamp_picking):
-    dict_timestamp_picking['veicolo'].append(self.veicolo)
+    dict_timestamp_picking['veicolo'].append(self.name)
     dict_timestamp_picking['n_mission'].append(self.n_mission)
     dict_timestamp_picking['codice'].append(self.pick_code)
     dict_timestamp_picking['richiesta'].append(
         np.round(self.richiesta, 2))
+    dict_timestamp_picking['disponibilità'].append(
+        np.round(self.disponibilità, 2))
     dict_timestamp_picking['partenza'].append(np.round(self.partenza, 2))
     dict_timestamp_picking['scarico'].append(np.round(self.scarico, 2))
     return(dict_timestamp_picking)
@@ -117,5 +119,8 @@ def plot_throughput(dict_t):
 def plot_quetot(dict_elements):
     plt.figure(figsize=(16, 9), dpi=300)
     plt.plot(dict_elements['time'], dict_elements['elements'])
+    m = np.mean(dict_elements['elements'])
+    mean_array = [m for x in range(len(dict_elements['time']))]
+    plt.plot(dict_elements['time'], mean_array)
     plt.ylabel('Coni in uso')
     plt.xlabel('Tempo [h]')

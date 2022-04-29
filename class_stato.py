@@ -18,8 +18,8 @@ parameters = {'t_tool': 15,  # tempo robot cambio tool in secondi
               't_mass_f': 25,
               't_pig_v': 17,
               't_pig_f': 25,  # tempi robot per una palettata in secondi
-              'tool': 1,  # 1 paletta piccola, 2 paletta grande
-              'par_que': 10,  # quanti elementi mettere in coda nell'algoritmo
+              'kg_mass': 3,  # capacità paletta massivi
+              'kg_pig': 3, #  capacità paletta pigmento
               'max_cicli': 15,  # massimi cicli di utilizzo di un cono
               }
 
@@ -73,6 +73,7 @@ variables = {'elements': 0,  # entità presenti nel sistema all'istante t
                                         'n_mission': [],
                                         'codice': [],
                                         'richiesta': [],
+                                        'disponibilità': [],
                                         'partenza': [],
                                         'scarico': [], },
 
@@ -106,8 +107,8 @@ class Stato():
         self.t_mass_f = parameters['t_mass_f']
         self.t_pig_v = parameters['t_pig_v']
         self.t_pig_f = parameters['t_pig_f']
-        self.tool = parameters['tool']
-        self.par_que = parameters['par_que']
+        self.kg_mass = parameters['kg_mass']
+        self.kg_pig = parameters['kg_pig']
         self.max_cicli = parameters['max_cicli']
 
         self.df_coni = data['df_coni']

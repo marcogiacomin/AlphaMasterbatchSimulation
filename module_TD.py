@@ -1,5 +1,6 @@
 import math
 import random
+from class_stato import stato
 
 
 def calc_TD(d, secondi_cambio_tool, mass_v, mass_f, pig_v, pig_f):
@@ -11,8 +12,8 @@ def calc_TD(d, secondi_cambio_tool, mass_v, mass_f, pig_v, pig_f):
     t_pig_v = pig_v / 60
     t_pig_f = pig_f / 60
 
-    pal_pig = 1
-    pal_mass = 2
+    pal_pig = stato.kg_pig
+    pal_mass = stato.kg_mass
 
     for i in range(len(d['statino'])):
         tmp_TD = 0
