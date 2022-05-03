@@ -2,6 +2,7 @@ import pandas as pd
 
 import glob
 import os
+from random import shuffle
 
 #  importazione statini
 path_folder_statini = "C:/Users/HP/Desktop/statini/*"
@@ -55,6 +56,9 @@ for c in codes:
         sl_list.append(c)
     else:
         mp_list.append(c)
+
+#  shuffle of mp to simulate a random allocation of codes
+mp_list = shuffle(mp_list)
 
 dict_mp = dict.fromkeys(mp_list)
 dict_sl = dict.fromkeys(sl_list)

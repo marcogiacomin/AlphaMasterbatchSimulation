@@ -394,11 +394,15 @@ print('TEMPO DI RUN ', datetime.now() - start)
 
 module_stats.plot_quetot(stato.dict_elements)
 
-
 df_timestamp_dosaggi.to_csv(r'C:/Users/HP/Desktop/df_tc_sim.csv')
 
-mask = (df_timestamp_dosaggi['richiesta_cono'] > 2880) & (
-    df_timestamp_dosaggi['richiesta_cono'] < 2880 + 1440)
-df_kg = df_timestamp_dosaggi[mask]
 
-np.sum(df_kg['kg_cono'])
+sat1 = E1.status.print_histogram(values=True, as_str=True)
+sat2 = E2.status.print_histogram(values=True, as_str=True)
+sat3 = E3.status.print_histogram(values=True, as_str=True)
+sat4 = E4.status.print_histogram(values=True, as_str=True)
+sat5 = E5.status.print_histogram(values=True, as_str=True)
+sat6 = E6.status.print_histogram(values=True, as_str=True)
+sat7 = E7.status.print_histogram(values=True, as_str=True)
+sat8 = E8.status.print_histogram(values=True, as_str=True)
+sat9 = E9.status.print_histogram(values=True, as_str=True)
