@@ -58,7 +58,7 @@ for c in codes:
         mp_list.append(c)
 
 #  shuffle of mp to simulate a random allocation of codes
-mp_list = shuffle(mp_list)
+shuffle(mp_list)
 
 dict_mp = dict.fromkeys(mp_list)
 dict_sl = dict.fromkeys(sl_list)
