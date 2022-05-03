@@ -113,6 +113,7 @@ class Stato():
 
         self.df_coni = data['df_coni']
         self.df_stock_mp = data['df_stock_mp']
+        #self.df_stock_mp = new_giacenza.pareto_allocation(data['df_stock_mp'])
         self.df_stock_sl = data['df_stock_sl']
         self.df_OP = data['df_OP']
 

@@ -17,9 +17,9 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.5/2
-t_scarico = 0.3/2
-t_manovra = 1/2
+t_carico = 0.9
+t_scarico = 0.5
+t_manovra = 0.7
 t_depall = 1
 #  ------------------
 
@@ -475,13 +475,13 @@ class Dosaggio(sim.Component):
         stato.df_OP.loc[[self.ID], 'stato'] = 'D'
         
         #  in caso di utilizzo mir e forklift
-        '''if self.staz_call.n == 'SA':
+        if self.staz_call.n == 'SA':
             for c in self.materie_prime.keys():
                 if c in stato.df_stock_mp.index:
                     fleet_manager_forklift.picking_list.append(c)
                 else:
                     fleet_manager_mir.picking_list.append(c)
-            picking_list_refreshed.trigger(max=1)'''
+            picking_list_refreshed.trigger(max=1)
             
         if self.staz_call.ispassive():
             self.staz_call.activate()
@@ -646,13 +646,13 @@ class Staz_auto(sim.Component):
             self.dosaggio = que_staz_dos.pop()
             
             #  in caso di NON utilizzo mir e forklift
-            for c in self.dosaggio.materie_prime.keys():
+            '''for c in self.dosaggio.materie_prime.keys():
                 if c in stato.df_stock_mp.index:
                     stato.df_stock_mp.loc[c, 'zona'] = 'S'
                     stato.df_stock_mp.loc[c, 'stato'] = 3
                 else:
                     stato.df_stock_sl.loc[c, 'zona'] = 'S'
-                    stato.df_stock_sl.loc[c, 'stato'] = 3
+                    stato.df_stock_sl.loc[c, 'stato'] = 3'''
 
             stato.df_stock_mp['statonext'] = False
             self.saved.clear()
@@ -833,7 +833,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24  # totale di ore che si vogliono simulare
+h_sim = 24*2  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 n_mission_forklift = 0
@@ -847,8 +847,8 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-DosaggioGenerator()
-#DosaggioGeneratorAutoNoPicking()
+#DosaggioGenerator()
+DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
