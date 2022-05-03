@@ -108,4 +108,12 @@ df_sl['stato'] = None
 df_sl.iloc[0, 2] = 'S'
 df_sl.iloc[0, 3] = 5
 
+
+def pareto_allocation(df_mp, df_pareto):
+    df_pareto = pd.read_csv('C:/Users/HP/Desktop/df_pareto_OP.csv', index_col='codice')
+    
+    df_mp.sort_index(inplace=True)
+    df_pareto.sort_index(inplace=True)
+    df_mp['sezione'] = df_pareto['posizione']
+    return(df_mp)
 # ----------------------
