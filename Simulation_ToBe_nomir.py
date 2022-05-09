@@ -84,6 +84,7 @@ class DosaggioGenerator(sim.Component):
 
 class Dosaggio(sim.Component):
     def parameters(self, best_dosaggio):
+        global tot_mp
         self.ID = best_dosaggio.loc['ID']
         self.statino = best_dosaggio.loc['statino']
         self.estrusore = best_dosaggio.loc['estrusore']
@@ -102,6 +103,7 @@ class Dosaggio(sim.Component):
                 self.materie_prime.append(x)
             else:
                 break
+        tot_mp += len(self.materie_prime)
 
         for i in [('kg.i' + str(n)) for n in range(1, 16)]:
             x = best_dosaggio.loc[i]
@@ -452,6 +454,7 @@ class Pulizia(sim.Component):
 # --------------------------------------------------
 h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
+tot_mp = 0
 
 # TEMPORANEI
 error = 0

@@ -76,20 +76,21 @@ df_mp['zona'] = 'M'
 df_mp['stato'] = None
 df_mp['statonext'] = False
 
-sections = 10
+sections = 14
 containers_in_section = len(df_mp) / sections
 
-#  definizione del tempo di picking in funzione della posizione in magazzino
-for section in range(1, 11):
+#  definizione della posizione in magazzino
+for section in range(0, 14):
     for idx in df_mp.index:
         if (df_mp.loc[idx, 'posizione'] <= (section * containers_in_section)
                 and df_mp.loc[idx, 'posizione'] >= ((section - 1) * containers_in_section)):
-            if section <= 5:
+            if section <= 6:
                 df_mp.loc[idx, 'sezione'] = section
             else:
-                df_mp.loc[idx, 'sezione'] = section - 5
+                df_mp.loc[idx, 'sezione'] = section - 6
         elif df_mp.loc[idx, 'posizione'] > section * containers_in_section:
             break
+
 
 i = 0
 for mp in df_mp.index:
@@ -119,4 +120,3 @@ def pareto_allocation(df_mp):
    
     return(df)
 # ----------------------
-df_mp2 = pareto_allocation(df_mp)

@@ -10,6 +10,7 @@ import math
 
 from module_class_cono import obj_coni
 from class_stato import stato
+pippo = stato.df_stock_mp.copy()
 from sim_queue import (obj_buffer, que_staz_dos,
                        que_staz_dos_1, que_staz_dos_2)
 
@@ -17,9 +18,10 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 0.9
-t_scarico = 0.5
-t_manovra = 0.7
+t_carico = 8/60
+t_scarico = 4/60
+t_zero = 4/60
+t_manovra = 0.5
 t_depall = 1
 #  ------------------
 
@@ -285,7 +287,7 @@ class Forklift(sim.Component):
             self.partenza = env.now()
             #  inizia con la missione
             t = (stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_carico
-                 + t_manovra
+                 + t_manovra + t_zero
                  + stato.df_stock_mp.loc[self.remove_code, 'sezione']
                  * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
@@ -297,7 +299,7 @@ class Forklift(sim.Component):
         
             stato.df_stock_mp.loc[self.pick_code, 'zona'] = 'H'
             t = (stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
-                 + t_manovra
+                 + t_manovra + t_zero
                  + stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
@@ -863,7 +865,7 @@ MIR1 = Mir100(n='MIR1')
 MIR2 = Mir100(n='MIR2')
 MIR3 = Mir100(n='MIR3')
 
-fl_list = [FL1, FL2]
+fl_list = [FL1]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')
