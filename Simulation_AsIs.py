@@ -340,7 +340,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 150  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 
 env = sim.Environment()
 

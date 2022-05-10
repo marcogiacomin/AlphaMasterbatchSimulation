@@ -10,7 +10,6 @@ import math
 
 from module_class_cono import obj_coni
 from class_stato import stato
-pippo = stato.df_stock_mp.copy()
 from sim_queue import (obj_buffer, que_staz_dos,
                        que_staz_dos_1, que_staz_dos_2)
 
@@ -18,10 +17,10 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 8/60
-t_scarico = 4/60
-t_zero = 4/60
-t_manovra = 0.5
+t_carico = 12/60 # da carico viaggia molto piano
+t_scarico = 4/60 # da scarico va più forte, v_max 1 metro al secondo
+t_corridoio = 90/60 #  frenata, manovra, percorrenza, accelerazione
+t_zero = 60/60 # carico pallet, accelerazione e percorrenza
 t_depall = 1
 #  ------------------
 
@@ -272,7 +271,7 @@ class Forklift(sim.Component):
         self.scarico = 0
 
     def process(self):
-        global stato, t_carico, t_scarico, t_manovra, n_mission_forklift
+        global stato, t_carico, t_scarico, t_zero, t_manovra, n_mission_forklift
         while True:
             self.richiesta = None
             self.disponibilità = None
@@ -286,10 +285,10 @@ class Forklift(sim.Component):
             self.n_mission = n_mission_forklift
             self.partenza = env.now()
             #  inizia con la missione
-            t = (stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_carico
-                 + t_manovra + t_zero
-                 + stato.df_stock_mp.loc[self.remove_code, 'sezione']
-                 * t_scarico)
+            t = (t_zero
+                 + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_carico
+                 + t_corridoio
+                 + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
             yield self.hold(dtb.sample())
@@ -299,8 +298,9 @@ class Forklift(sim.Component):
         
             stato.df_stock_mp.loc[self.pick_code, 'zona'] = 'H'
             t = (stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
-                 + t_manovra + t_zero
-                 + stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico)
+                 + t_corridoio
+                 + stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico
+                 + t_zero)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
             yield self.hold(dtb.sample())
@@ -835,7 +835,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 24*2  # totale di ore che si vogliono simulare
+h_sim = 48  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 n_mission_forklift = 0
@@ -849,7 +849,7 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-#DosaggioGenerator()
+DosaggioGenerator()
 DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
@@ -865,7 +865,7 @@ MIR1 = Mir100(n='MIR1')
 MIR2 = Mir100(n='MIR2')
 MIR3 = Mir100(n='MIR3')
 
-fl_list = [FL1]
+fl_list = [FL1, FL2]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')

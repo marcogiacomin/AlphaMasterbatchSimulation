@@ -529,3 +529,4 @@ tot_ques = len(handlingest.claimers()
                + miscelatore.requesters())
 
 a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
+sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
