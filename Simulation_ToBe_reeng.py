@@ -17,7 +17,7 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 12/60 # da carico viaggia molto piano
+t_carico = 8/60 # da carico viaggia piano
 t_scarico = 4/60 # da scarico va più forte, v_max 1 metro al secondo
 t_corridoio = 90/60 #  frenata, manovra, percorrenza, accelerazione
 t_zero = 60/60 # carico pallet, accelerazione e percorrenza
@@ -224,18 +224,18 @@ class FleetManagerForklift(sim.Component):
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 4
-                          and self.count_overlap() <= 2):
+                          and self.count_overlap() <= 3):
                         staz_auto.save_list.append(code)
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'S'
                           and stato.df_stock_mp.loc[code, 'stato'] == 3
-                          and self.count_overlap() <= 2):
+                          and self.count_overlap() <= 3):
                         staz_auto.save_list.append(code)
                         stato.df_stock_mp.loc[code, 'statonext'] = True
                         departed = True
                     elif (stato.df_stock_mp.loc[code, 'zona'] == 'H'
                           and stato.df_stock_mp.loc[code, 'stato'] == 2
-                          and self.count_overlap() <= 2):
+                          and self.count_overlap() <= 3):
                         staz_auto.save_list.append(code)
                         stato.df_stock_mp.loc[code, 'statonext'] = True
                         departed = True
@@ -291,20 +291,28 @@ class Forklift(sim.Component):
                  + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            yield self.hold(dtb.sample())
-            #  yield self.hold(0)
+            #yield self.hold(dtb.sample())
+            yield self.hold(0)
             stato.df_stock_mp.loc[self.remove_code, 'zona'] = 'M'
             stato.df_stock_mp.loc[self.remove_code, 'stato'] = None
         
             stato.df_stock_mp.loc[self.pick_code, 'zona'] = 'H'
-            t = (stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
-                 + t_corridoio
-                 + stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico
+            
+            #  primo approccio alla simulazione di ciclo combinato su uno
+            #  o su due corridoi
+            if (stato.df_stock_mp.loc[self.pick_code, 'sezione']
+                == stato.df_stock_mp.loc[self.remove_code, 'sezione']):
+                t = t_corridoio / 3
+            else:
+                t = stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
+                t += t_corridoio
+            
+            t = (stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico
                  + t_zero)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            yield self.hold(dtb.sample())
-            #  yield self.hold(0)
+            #yield self.hold(dtb.sample())
+            yield self.hold(0)
             self.scarico = env.now()
 
             stato.df_stock_mp.loc[self.pick_code, 'stato'] = 3
@@ -340,11 +348,11 @@ class Mir100(sim.Component):
             self.partenza = env.now()
             stato.df_stock_sl.loc[self.remove_code, 'stato'] = 6
             yield self.hold(db_mir100_sl.sample())
-            #  yield self.hold(0)
+            #yield self.hold(0)
             stato.df_stock_sl.loc[self.remove_code, 'zona'] = 'M'
             stato.df_stock_sl.loc[self.remove_code, 'stato'] = None
             yield self.hold(db_mir100_sl.sample())
-            #  yield self.hold(0)
+            #yield self.hold(0)
             self.scarico = env.now()
     
             stato.df_stock_sl.loc[self.pick_code, 'stato'] = 3
@@ -849,7 +857,7 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-DosaggioGenerator()
+#  DosaggioGenerator()
 DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
@@ -865,7 +873,7 @@ MIR1 = Mir100(n='MIR1')
 MIR2 = Mir100(n='MIR2')
 MIR3 = Mir100(n='MIR3')
 
-fl_list = [FL1, FL2]
+fl_list = [FL1, FL2, FL3]
 mir100_list = [MIR1]
 
 handlingpes = sim.Resource('Gualchierani_pre_pes')

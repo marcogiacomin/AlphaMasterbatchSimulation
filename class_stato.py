@@ -168,6 +168,11 @@ df_sl['zona'] = 'M'
 df_sl['stato'] = None
 df_sl.iloc[0, 2] = 'S'
 df_sl.iloc[0, 3] = 5
+'''df_sl.iloc[1, 2] = 'S'
+df_sl.iloc[1, 3] = 5
+df_sl.iloc[2, 2] = 'S'
+df_sl.iloc[2, 3] = 5'''
+
 
 
 def pareto_allocation(df_mp):
