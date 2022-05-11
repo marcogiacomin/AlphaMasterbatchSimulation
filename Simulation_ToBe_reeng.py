@@ -70,7 +70,7 @@ db_mir500_coni_staz = sim.Bounded(d_mir500_coni_staz,
 
 d_mir100_sl = sim.Normal(
     mean=3, standard_deviation=0.4)  # go and back CT
-db_mir100_sl = sim.Bounded(d_mir500_coni_pul,
+db_mir100_sl = sim.Bounded(d_mir100_sl,
                            lowerbound=2, upperbound=8)
 #  --------------------
 class OrologioSim(sim.Component):
@@ -291,8 +291,8 @@ class Forklift(sim.Component):
                  + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_scarico)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            #yield self.hold(dtb.sample())
-            yield self.hold(0)
+            yield self.hold(dtb.sample())
+            #yield self.hold(0)
             stato.df_stock_mp.loc[self.remove_code, 'zona'] = 'M'
             stato.df_stock_mp.loc[self.remove_code, 'stato'] = None
         
@@ -311,8 +311,8 @@ class Forklift(sim.Component):
                  + t_zero)
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
-            #yield self.hold(dtb.sample())
-            yield self.hold(0)
+            yield self.hold(dtb.sample())
+            #yield self.hold(0)
             self.scarico = env.now()
 
             stato.df_stock_mp.loc[self.pick_code, 'stato'] = 3
