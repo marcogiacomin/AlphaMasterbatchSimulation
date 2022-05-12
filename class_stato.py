@@ -1,6 +1,7 @@
 import pandas as pd
 from random import shuffle
 import ETL_all_OPs
+import new_giacenza
 
 
 # PATH DEI FILE DA IMPORTARE
@@ -25,8 +26,8 @@ parameters = {'t_tool': 15,  # tempo robot cambio tool in secondi
 
 data = {'df_coni': pd.read_csv(r"C:\Users\HP\Desktop\mag_coni.csv",
                                sep=';', index_col='RFID'),
-        'df_stock_mp': None,
-        'df_stock_sl': None,
+        'df_stock_mp': new_giacenza.df_mp,
+        'df_stock_sl': new_giacenza.df_sl,
         'df_OP': ETL_all_OPs.func_OP(path_folder_statini, path_folder_progprod,
                                      parameters['t_tool'],
                                      mass_v=parameters['t_mass_v'],
@@ -97,7 +98,7 @@ variables = {'elements': 0,  # entità presenti nel sistema all'istante t
                                        't_tot': [], }
              }
 # --------------------------------------------------
-
+'''
 # in questa sezione creo la giacenza
 cod_col = ['cod.i' + str(x) for x in range(1, 16)]
 codici = []
@@ -168,10 +169,6 @@ df_sl['zona'] = 'M'
 df_sl['stato'] = None
 df_sl.iloc[0, 2] = 'S'
 df_sl.iloc[0, 3] = 5
-'''df_sl.iloc[1, 2] = 'S'
-df_sl.iloc[1, 3] = 5
-df_sl.iloc[2, 2] = 'S'
-df_sl.iloc[2, 3] = 5'''
 
 
 
@@ -184,7 +181,7 @@ def pareto_allocation(df_mp):
     df.fillna(1, inplace=True)
    
     return(df)
-
+'''
 
 # definisco la classe stato
 class Stato():
@@ -199,9 +196,9 @@ class Stato():
         self.max_cicli = parameters['max_cicli']
 
         self.df_coni = data['df_coni']
-        #self.df_stock_mp = df_mp
-        self.df_stock_mp = pareto_allocation(df_mp)
-        self.df_stock_sl = df_sl
+        self.df_stock_mp = data['df_stock_mp']
+        #self.df_stock_mp = new_giacenza.pareto_allocation(data['df_mp'])
+        self.df_stock_sl = data['df_stock_sl']
         self.df_OP = data['df_OP']
 
         self.elements = variables['elements']

@@ -67,8 +67,6 @@ dict_sl = dict.fromkeys(sl_list)
 #  creazione bulk storage materie prime
 df_mp = pd.DataFrame.from_dict(dict_mp, orient='index', columns=['posizione'])
 
-df_mp.drop(index=df_mp.index[0], axis=0, inplace=True)
-
 df_mp['posizione'] = range(0, len(df_mp))
 df_mp['sezione'] = None
 df_mp['qta'] = 500

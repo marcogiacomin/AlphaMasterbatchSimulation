@@ -302,7 +302,7 @@ class Forklift(sim.Component):
             #  o su due corridoi
             if (stato.df_stock_mp.loc[self.pick_code, 'sezione']
                 == stato.df_stock_mp.loc[self.remove_code, 'sezione']):
-                t = t_corridoio / 3
+                t = t_corridoio / 2
             else:
                 t = stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
                 t += t_corridoio
@@ -857,7 +857,7 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-#  DosaggioGenerator()
+DosaggioGenerator()
 DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
