@@ -17,11 +17,7 @@ from datetime import datetime
 start = datetime.now()
 
 #  intertempi tra due sezioni del magazzino
-t_carico = 8/60 # da carico viaggia piano
-t_scarico = 4/60 # da scarico va più forte, v_max 1 metro al secondo
-t_corridoio = 90/60 #  frenata, manovra, percorrenza, accelerazione
-t_zero = 60/60 # carico pallet, accelerazione e percorrenza
-t_depall = 1
+#  qui inseritò i vari intertempi di picking delle mp
 #  ------------------
 
 # set distributions for service times
@@ -269,6 +265,51 @@ class Forklift(sim.Component):
         self.disponibilità = 0
         self.partenza = 0
         self.scarico = 0
+        
+    def calc_pick_time(self):
+        t0 = 45 / 60 #prelievo in stazione, manovra ingresso corridoio
+        t1 = 15 / 60 # percorro metà corridoio
+        t2 = 1 #deposito
+        t3 = 45 / 60 # percorro metà corridoio al ritorno
+        t3_1 = 0
+        t3_2 = 0
+        if (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 1
+            and (stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 2
+                 or stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 3)):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 2
+            and (stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 1
+                 or stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 5)):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 3
+            and stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 1):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 4
+            and (stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 7
+                 or stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 6)):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 5
+            and stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 2):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 6
+            and stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 4):
+            pass
+        elif (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 7
+            and stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 4):
+            pass
+        else:
+            t3_1 = 20/ 60
+            t3_2 = 15 / 60
+        t4 = 45 / 60 # prelievo codice in corridoio
+        t5 = 15 / 60 # percorro corridoio
+        t6 = 45 / 60 # deposito in stazione
+        
+        t_tot1 = t0 + t1 + t2
+        t_tot2 = t3 + t3_1 + t3_2 + t4 + t5 + t6
+        times = (t_tot1, t_tot2)
+        
+        
+        return(times)
 
     def process(self):
         global stato, t_carico, t_scarico, t_zero, t_manovra, n_mission_forklift
@@ -285,10 +326,9 @@ class Forklift(sim.Component):
             self.n_mission = n_mission_forklift
             self.partenza = env.now()
             #  inizia con la missione
-            t = (t_zero
-                 + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_carico
-                 + t_corridoio
-                 + stato.df_stock_mp.loc[self.remove_code, 'sezione'] * t_scarico)
+            time_tuple = self.calc_pick_time()
+            
+            t = time_tuple[0]
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
             yield self.hold(dtb.sample())
@@ -300,15 +340,7 @@ class Forklift(sim.Component):
             
             #  primo approccio alla simulazione di ciclo combinato su uno
             #  o su due corridoi
-            if (stato.df_stock_mp.loc[self.pick_code, 'sezione']
-                == stato.df_stock_mp.loc[self.remove_code, 'sezione']):
-                t = t_corridoio / 2
-            else:
-                t = stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_scarico
-                t += t_corridoio
-            
-            t = (stato.df_stock_mp.loc[self.pick_code, 'sezione'] * t_carico
-                 + t_zero)
+            t =  time_tuple[1]
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
             yield self.hold(dtb.sample())
@@ -857,7 +889,7 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-DosaggioGenerator()
+#DosaggioGenerator()
 DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
