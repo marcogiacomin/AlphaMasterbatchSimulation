@@ -269,8 +269,8 @@ class Forklift(sim.Component):
     def calc_pick_time(self):
         t0 = 45 / 60 #prelievo in stazione, manovra ingresso corridoio
         t1 = 15 / 60 # percorro metà corridoio
-        t2 = 1 #deposito
-        t3 = 45 / 60 # percorro metà corridoio al ritorno
+        t2 = 45 / 60 #deposito
+        t3 = 0
         t3_1 = 0
         t3_2 = 0
         if (stato.df_stock_mp.loc[self.remove_code, 'sezione'] == 1
@@ -298,7 +298,8 @@ class Forklift(sim.Component):
             and stato.df_stock_mp.loc[self.pick_code, 'sezione'] == 4):
             pass
         else:
-            t3_1 = 20/ 60
+            t3 = 15 / 60 # percorro metà corridoio al ritorno
+            t3_1 = 25 / 60
             t3_2 = 15 / 60
         t4 = 45 / 60 # prelievo codice in corridoio
         t5 = 15 / 60 # percorro corridoio
