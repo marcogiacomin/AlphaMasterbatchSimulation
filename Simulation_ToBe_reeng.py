@@ -890,7 +890,7 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-#DosaggioGenerator()
+DosaggioGenerator()
 DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
