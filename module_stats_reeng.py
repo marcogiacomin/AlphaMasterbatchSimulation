@@ -110,7 +110,7 @@ def plot_throughput(dict_t):
     for k in dict_t.keys():
         if k != 'time':
             plt.plot(dict_t['time'], dict_t[k], label=k)
-    plt.ylabel('Throughput')
+    plt.ylabel('Throughput [Kg/h]')
     plt.xlabel('Tempo [h]')
     plt.legend()
     return()
@@ -122,5 +122,6 @@ def plot_quetot(dict_elements):
     m = np.mean(dict_elements['elements'])
     mean_array = [m for x in range(len(dict_elements['time']))]
     plt.plot(dict_elements['time'], mean_array)
-    plt.ylabel('Coni in uso')
+    plt.ylim(0, 30)
+    plt.ylabel('Elementi nel sistema')
     plt.xlabel('Tempo [h]')

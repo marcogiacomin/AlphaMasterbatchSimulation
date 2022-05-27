@@ -1,4 +1,3 @@
-import numpy as np
 import module_class_cono
 import module_stats
 import module_que_by_est
@@ -340,7 +339,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 120  # totale di ore che si vogliono simulare
 
 env = sim.Environment()
 
@@ -406,3 +405,17 @@ sat6 = E6.status.print_histogram(values=True, as_str=True)
 sat7 = E7.status.print_histogram(values=True, as_str=True)
 sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
+staz1 = stazione1.status.print_histogram(values=True, as_str=True)
+staz2 = stazione2.status.print_histogram(values=True, as_str=True)
+sat_misc = miscelatore.occupancy.mean()
+
+tot_buff = 0
+for b in obj_buffer:
+    tot_buff += len(b)
+
+tot_ques = len(handlingest.claimers()
+               + miscelatore.claimers()
+               + handlingest.requesters()
+               + miscelatore.requesters())
+
+a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim

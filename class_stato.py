@@ -78,7 +78,7 @@ variables = {'elements': 0,  # entità presenti nel sistema all'istante t
                                         'partenza': [],
                                         'scarico': [], },
 
-             'dict_elements': {'time': [], 'elements': []},
+             'dict_elements': {'time': [0], 'elements': [0]},
 
              'dict_timestamp_pulizie': {'cono': [],
                                         'cono_cicli': [],

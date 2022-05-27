@@ -117,5 +117,9 @@ def plot_throughput(dict_t):
 def plot_quetot(dict_elements):
     plt.figure(figsize=(16, 9), dpi=300)
     plt.plot(dict_elements['time'], dict_elements['elements'])
-    plt.ylabel('Coni in uso')
+    m = np.mean(dict_elements['elements'])
+    mean_array = [m for x in range(len(dict_elements['time']))]
+    plt.plot(dict_elements['time'], mean_array)
+    plt.ylim(0, 30)
+    plt.ylabel('Elementi nel sistema')
     plt.xlabel('Tempo [h]')
