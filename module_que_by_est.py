@@ -46,7 +46,7 @@ def func_calc_que(estrusori, dict_TER, t, df_OP):
         if len(df_tmp) > 0:
             dict_tmp = pd.Series.to_dict(df_tmp.iloc[0, ])
             for key in dict_tmp:
-                # non riempie le key che non sono nel nuovo diz
+                # non riempie le keys che non sono nel nuovo diz
                 if key not in ['TU', 'ord_dos', 'ass_cono']:
                     dict_calc[key].append(dict_tmp[key])
 
@@ -70,9 +70,3 @@ def func_calc_que(estrusori, dict_TER, t, df_OP):
     df_seq = pd.DataFrame.from_dict(
         dict_calc, orient='columns').sort_values('TU')
     return (df_seq)
-
-
-'''df_coda = func_calc_que(
-    stato.estrusori,
-    stato.dict_TER, 10,
-    stato.df_OP)'''

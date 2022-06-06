@@ -22,10 +22,10 @@ d_interarrival = sim.External(stats.burr12, c=1.6510761870773936,
                               scale=28.18319121005929)
 db_interarrival = sim.Bounded(d_interarrival, lowerbound=0, upperbound=60)
 
-d_handlingpes = sim.External(stats.recipinvgauss, mu=982686.023539558,
+'''d_handlingpes = sim.External(stats.recipinvgauss, mu=982686.023539558,
                              loc=1.133299999996841,
                              scale=3.395239969140169)
-db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=25)
+db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=25)'''
 
 d_pesatura = sim.External(stats.invweibull, c=5.9132736293702335,
                           loc=-18.072017323530094,
@@ -159,7 +159,7 @@ class Dosaggio(sim.Component):
         stato.elements += 1
         stato.dict_elements['time'].append(env.now()/60)
         stato.dict_elements['elements'].append(stato.elements)
-        yield self.hold(db_handlingpes.sample())
+        #  yield self.hold(db_handlingpes.sample())
         self.release()
         self.enter(self.staz_call.que)
         if self.staz_call.ispassive():

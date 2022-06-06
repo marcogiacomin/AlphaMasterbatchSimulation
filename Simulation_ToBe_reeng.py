@@ -308,8 +308,6 @@ class Forklift(sim.Component):
         t_tot1 = t0 + t1 + t2
         t_tot2 = t3 + t3_1 + t3_2 + t4 + t5 + t6
         times = (t_tot1, t_tot2)
-        
-        
         return(times)
 
     def process(self):
@@ -339,8 +337,7 @@ class Forklift(sim.Component):
         
             stato.df_stock_mp.loc[self.pick_code, 'zona'] = 'H'
             
-            #  primo approccio alla simulazione di ciclo combinato su uno
-            #  o su due corridoi
+            #  simulazione di ciclo combinato su uno o su due corridoi
             t =  time_tuple[1]
             dt = sim.Normal(mean=t, standard_deviation=t/10)  # only go
             dtb = sim.Bounded(dt, lowerbound=t/2, upperbound=2*t)
@@ -999,3 +996,5 @@ satFL2 = FL2.status.print_histogram(values=True, as_str=True)
 satFL2 = FL2.status.print_histogram(values=True, as_str=True)
 satFL3 = FL3.status.print_histogram(values=True, as_str=True)
 satMIR1 = MIR1.status.print_histogram(values=True, as_str=True)
+
+len(df_timestamp_picking[ df_timestamp_picking['veicolo'] != 'MIR1'])
