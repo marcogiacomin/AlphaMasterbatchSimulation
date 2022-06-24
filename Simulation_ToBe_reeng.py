@@ -21,20 +21,19 @@ start = datetime.now()
 #  ------------------
 
 # set distributions for service times
-d_interarrival = sim.External(stats.burr, c=3.145066166877723,
-                              d=0.4544712096918647,
-                              loc=0.4728219512560952,
-                              scale=14.372708948169587)
-db_interarrival = sim.Bounded(d_interarrival, lowerbound=0, upperbound=60)
+d_interarrival = sim.External(stats.exponnorm, K=9.705803684825007,
+                              loc=2.97487585040842,
+                              scale=2.0300493854781405)
+db_interarrival = sim.Bounded(d_interarrival, lowerbound=0, upperbound=80)
 
-d_handlingpes = sim.External(stats.recipinvgauss, mu=982686.023539558,
-                             loc=1.133299999996841,
-                             scale=3.395239969140169)
-db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=25)
+d_handlingpes = sim.External(stats.cauchy, loc=2.143530320901906,
+                             scale=0.3635986753255407)
+db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=15)
 
-d_pesatura = sim.External(stats.invweibull, c=5.9132736293702335,
-                          loc=-18.072017323530094,
-                          scale=28.770231959297615)
+d_pesatura = sim.External(stats.johnsonsu, a=-2.309906114386883,
+                          b=1.5337926656299627,
+                          loc=1.8806498106960001,
+                          scale=2.813651457755295)
 db_pesatura = sim.Bounded(d_pesatura, lowerbound=0, upperbound=50)
 
 d_miscelatore = sim.External(stats.johnsonsu, a=-0.8549508017162559,
@@ -43,12 +42,11 @@ d_miscelatore = sim.External(stats.johnsonsu, a=-0.8549508017162559,
                              scale=8.458237254897196e-09)
 db_miscelatore = sim.Bounded(d_miscelatore, lowerbound=0, upperbound=15)
 
-d_handlingest = sim.External(stats.gennorm, beta=0.19622416287615776,
-                             loc=5.15,
-                             scale=6.14156557438578e-05)
+d_handlingest = sim.External(stats.cauchy, loc=6.457168840303545,
+                             scale=0.7117884436248214)
 db_handlingest = sim.Bounded(d_handlingest, lowerbound=0, upperbound=15)
 
-d_extrusion = sim.External(stats.laplace, loc=40.0, scale=16.08991553254438)
+d_extrusion = sim.External(stats.laplace, loc=36.6, scale=15.959097169190258)
 db_extrusion = sim.Bounded(d_extrusion, lowerbound=5, upperbound=250)
 
 d_pulizia = sim.Normal(180, 20)
@@ -873,7 +871,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 48  # totale di ore che si vogliono simulare
+h_sim = 150  # totale di ore che si vogliono simulare
 n_mission500_coni = 0
 n_mission100 = 0
 n_mission_forklift = 0
@@ -888,7 +886,7 @@ picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
 DosaggioGenerator()
-DosaggioGeneratorAutoNoPicking()
+#DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 

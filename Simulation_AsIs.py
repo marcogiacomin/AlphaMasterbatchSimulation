@@ -61,7 +61,7 @@ class DosaggioGenerator(sim.Component):
                 else:
                     s = stazione2
                 Dosaggio(staz_call=s)
-                yield self.hold(db_interarrival.sample())
+                yield self.hold(db_interarrival.sample()*0.8)
             else:
                 yield self.hold(1)
 
@@ -191,7 +191,7 @@ class Dosaggio(sim.Component):
             stato.df_OP.loc[[self.ID], 'stato'] = 'G'
             self.cono.posizione = 'GUA'
             self.ingresso_handlingest = env.now()
-            yield self.hold(db_handlingest.sample())
+            yield self.hold(db_handlingest.sample()*0.8)
             i = stato.estrusori.index(self.estrusore)
             while len(obj_buffer[i]) >= 2:
                 yield self.hold(1)
@@ -240,7 +240,7 @@ class Stazione(sim.Component):
                 yield self.passivate()
             self.dosaggio = self.que.pop()
             self.dosaggio.inizio_dosatura = env.now()
-            yield self.hold(db_pesatura.sample())
+            yield self.hold(db_pesatura.sample()*0.78)
             self.dosaggio.fine_dosatura = env.now()
             print('Dosato ', env.now(), str(
                 self.dosaggio.estrusore), self.dosaggio.cono.rfid)
@@ -273,7 +273,7 @@ class Estrusore(sim.Component):
                     self.dosaggio.cono.posizione = est
                     extrusion_time = db_extrusion.sample()
                     stato.dict_TER[self.n] = extrusion_time + env.now()
-                    yield self.hold(extrusion_time)
+                    yield self.hold(extrusion_time*0.75)
                     self.dosaggio.fine_estrusione = env.now()
                     print('estruso ', env.now(), str(
                         self.n), self.dosaggio.cono.rfid)
@@ -339,7 +339,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 120  # totale di ore che si vogliono simulare
+h_sim = 250  # totale di ore che si vogliono simulare
 
 env = sim.Environment()
 
