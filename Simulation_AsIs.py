@@ -274,6 +274,8 @@ class Estrusore(sim.Component):
                     extrusion_time = db_extrusion.sample()
                     stato.dict_TER[self.n] = extrusion_time + env.now()
                     yield self.hold(extrusion_time*0.75)
+                    if random() < 0.05:
+                        yield self.hold(300)
                     self.dosaggio.fine_estrusione = env.now()
                     print('estruso ', env.now(), str(
                         self.n), self.dosaggio.cono.rfid)
@@ -339,7 +341,7 @@ class Pulizia(sim.Component):
 
 # MAIN
 # --------------------------------------------------
-h_sim = 250  # totale di ore che si vogliono simulare
+h_sim = 150  # totale di ore che si vogliono simulare
 
 env = sim.Environment()
 
