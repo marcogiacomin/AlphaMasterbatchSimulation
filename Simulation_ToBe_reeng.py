@@ -5,7 +5,7 @@ import module_que_by_est
 import pandas as pd
 import salabim as sim
 from scipy import stats
-from random import random, randrange
+from random import random, randrange, randint
 import math
 
 from module_class_cono import obj_coni
@@ -20,20 +20,22 @@ start = datetime.now()
 #  qui inseritò i vari intertempi di picking delle mp
 #  ------------------
 
+# -------------
 # set distributions for service times
-d_interarrival = sim.External(stats.exponnorm, K=9.705803684825007,
-                              loc=2.97487585040842,
-                              scale=2.0300493854781405)
-db_interarrival = sim.Bounded(d_interarrival, lowerbound=0, upperbound=80)
+d_interarrival = sim.External(stats.burr12, c=1.6510761870773936,
+                              d=4.90409753998643,
+                              loc=-0.139633281979239,
+                              scale=28.18319121005929)
+db_interarrival = sim.Bounded(d_interarrival, lowerbound=0, upperbound=60)
 
-d_handlingpes = sim.External(stats.cauchy, loc=2.143530320901906,
-                             scale=0.3635986753255407)
-db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=15)
+d_handlingpes = sim.External(stats.recipinvgauss, mu=982686.023539558,
+                             loc=1.133299999996841,
+                             scale=3.395239969140169)
+db_handlingpes = sim.Bounded(d_handlingpes, lowerbound=0, upperbound=25)
 
-d_pesatura = sim.External(stats.johnsonsu, a=-2.309906114386883,
-                          b=1.5337926656299627,
-                          loc=1.8806498106960001,
-                          scale=2.813651457755295)
+d_pesatura = sim.External(stats.invweibull, c=5.9132736293702335,
+                          loc=-18.072017323530094,
+                          scale=28.770231959297615)
 db_pesatura = sim.Bounded(d_pesatura, lowerbound=0, upperbound=50)
 
 d_miscelatore = sim.External(stats.johnsonsu, a=-0.8549508017162559,
@@ -42,15 +44,17 @@ d_miscelatore = sim.External(stats.johnsonsu, a=-0.8549508017162559,
                              scale=8.458237254897196e-09)
 db_miscelatore = sim.Bounded(d_miscelatore, lowerbound=0, upperbound=15)
 
-d_handlingest = sim.External(stats.cauchy, loc=6.457168840303545,
-                             scale=0.7117884436248214)
+d_handlingest = sim.External(stats.gennorm, beta=0.19622416287615776,
+                             loc=5.15,
+                             scale=6.14156557438578e-05)
 db_handlingest = sim.Bounded(d_handlingest, lowerbound=0, upperbound=15)
 
-d_extrusion = sim.External(stats.laplace, loc=36.6, scale=15.959097169190258)
+d_extrusion = sim.External(stats.laplace, loc=40.0, scale=16.08991553254438)
 db_extrusion = sim.Bounded(d_extrusion, lowerbound=5, upperbound=250)
 
 d_pulizia = sim.Normal(180, 20)
 db_pulizia = sim.Bounded(d_extrusion, lowerbound=60, upperbound=240)
+#  --------------------
 
 d_mir500_coni_pul = sim.Normal(
     mean=8, standard_deviation=0.8)  # go and back CT
@@ -802,7 +806,9 @@ class Estrusore(sim.Component):
             self.dosaggio.cono.posizione = self.n
             extrusion_time = db_extrusion.sample()
             stato.dict_TER[self.n] = extrusion_time + env.now()
-            yield self.hold(extrusion_time)
+            yield self.hold(extrusion_time*0.75)
+            if random() < 0.01: # probabilità di guasto
+                yield self.hold(randint(200, 350)) # tempo di manutenzione
             self.dosaggio.fine_estrusione = env.now()
             print('estruso ', env.now(), str(
                 self.n), self.dosaggio.cono.rfid)
@@ -848,7 +854,7 @@ class Pulizia(sim.Component):
                 cono.posizione = 'PUL'
                 self.inizio_pulizia = env.now()
                 yield self.hold(db_pulizia.sample())
-                #  yield self.hold(0)
+                #yield self.hold(0)
                 self.fine_pulizia = env.now()
                 cono.color = 0
                 cono.valcrom = 0
@@ -885,8 +891,8 @@ call_dos = sim.State('call_dos')
 picking_list_refreshed = sim.State('picking_list_refreshed')
 #  -------------
 
-DosaggioGenerator()
-#DosaggioGeneratorAutoNoPicking()
+#DosaggioGenerator()
+DosaggioGeneratorAutoNoPicking()
 
 mir500_coni = sim.Resource('MIR500 Coni', capacity=1)
 
@@ -897,6 +903,8 @@ FL1 = Forklift(n='FL1')
 FL2 = Forklift(n='FL2')
 FL3 = Forklift(n='FL3')
 FL4 = Forklift(n='FL4')
+FL5 = Forklift(n='FL3')
+FL6 = Forklift(n='FL4')
 MIR1 = Mir100(n='MIR1')
 MIR2 = Mir100(n='MIR2')
 MIR3 = Mir100(n='MIR3')
@@ -974,7 +982,7 @@ a_coni_h = (len(df_timestamp_dosaggi) + tot_buff + tot_ques) / h_sim
 
 # STATISTICHE SULLA SATURAZIONE DEI SERVER
 sat_misc = miscelatore.occupancy.mean()
-sat_hand_2 = handlingest.occupancy.mean()
+sat_hand = handlingest.occupancy.mean()
 sat_staz_aut = staz_auto.status.print_histogram(values=True, as_str=True)
 sat_staz1 = stazione1.status.print_histogram(values=True, as_str=True)
 sat_staz2 = stazione2.status.print_histogram(values=True, as_str=True)
@@ -991,8 +999,13 @@ sat8 = E8.status.print_histogram(values=True, as_str=True)
 sat9 = E9.status.print_histogram(values=True, as_str=True)
 satFL1 = FL1.status.print_histogram(values=True, as_str=True)
 satFL2 = FL2.status.print_histogram(values=True, as_str=True)
-satFL2 = FL2.status.print_histogram(values=True, as_str=True)
 satFL3 = FL3.status.print_histogram(values=True, as_str=True)
+#satFL4 = FL4.status.print_histogram(values=True, as_str=True)
+#satFL5 = FL3.status.print_histogram(values=True, as_str=True)
+#satFL6 = FL4.status.print_histogram(values=True, as_str=True)
 satMIR1 = MIR1.status.print_histogram(values=True, as_str=True)
 
 len(df_timestamp_picking[ df_timestamp_picking['veicolo'] != 'MIR1'])
+
+df_th = pd.DataFrame.from_dict(stato.dict_throughput, orient='columns')
+df_th.to_csv('C:/Users/HP/Desktop/th4fl.csv')

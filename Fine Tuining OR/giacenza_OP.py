@@ -2,7 +2,7 @@ import pandas as pd
 
 import glob
 import os
-from random import shuffle, randrange
+from random import shuffle
 
 #  importazione statini
 path_folder_statini = "C:/Users/HP/Desktop/statini/*"
@@ -67,18 +67,40 @@ dict_sl = dict.fromkeys(sl_list)
 #  creazione bulk storage materie prime
 df_mp = pd.DataFrame.from_dict(dict_mp, orient='index', columns=['posizione'])
 
+df_mp.drop(index=df_mp.index[0], axis=0, inplace=True)
+
 df_mp['posizione'] = range(0, len(df_mp))
 df_mp['sezione'] = None
 df_mp['qta'] = 500
 df_mp['zona'] = 'M'
 df_mp['stato'] = None
+df_mp['statonext'] = False
+
+sections = 14
+containers_in_section = len(df_mp) / sections
+
+#  definizione della posizione in magazzino
+for section in range(0, 14):
+    for idx in df_mp.index:
+        if (df_mp.loc[idx, 'posizione'] <= (section * containers_in_section)
+                and df_mp.loc[idx, 'posizione'] >= ((section - 1) * containers_in_section)):
+            if section <= 6:
+                df_mp.loc[idx, 'sezione'] = section
+            else:
+                df_mp.loc[idx, 'sezione'] = section - 6
+        elif df_mp.loc[idx, 'posizione'] > section * containers_in_section:
+            break
+for idx in df_mp.index:
+    if df_mp.loc[idx, 'sezione'] is None:
+        df_mp.loc[idx, 'sezione'] = 6
+
 
 i = 0
 for mp in df_mp.index:
     df_mp.loc[mp, 'zona'] = 'S'
     df_mp.loc[mp, 'stato'] = 5
     i += 1
-    if i == 8:
+    if i == 4:
         break
 
 #  creazione magrob per semilavorati
@@ -89,27 +111,15 @@ df_sl['zona'] = 'M'
 df_sl['stato'] = None
 df_sl.iloc[0, 2] = 'S'
 df_sl.iloc[0, 3] = 5
-df_sl.iloc[1, 2] = 'S'
-df_sl.iloc[1, 3] = 5
 
-# questo funzione assegna un numero random alla sezione
-# di magazzino in cui si trova il prodotto
-def random_section(df, colonna, start, end):
-    for i in df_mp.index:
-        s = randrange(start, end + 1)
-        df.loc[i, colonna] = s
-    return(df)
 
-# questa funzione prende in input il df con pareto
-# assegna la sezione in funzione del numero di movimentazioni
-# che quella materia prima subirà
 def pareto_allocation(df_mp):
-    df_pareto = pd.read_csv('C:/Users/HP/Desktop/df_pareto_OP.csv',
-                            index_col='codice')
+    df_pareto = pd.read_csv('C:/Users/HP/Desktop/df_pareto_OP.csv', index_col='codice')
     df = df_mp.copy()
     df.sort_index(inplace=True)
     df_pareto.sort_index(inplace=True)
     df['sezione'] = df_pareto['posizione']
     df.fillna(1, inplace=True)
+   
     return(df)
 # ----------------------

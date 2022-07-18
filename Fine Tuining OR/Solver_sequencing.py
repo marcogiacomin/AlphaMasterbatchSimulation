@@ -25,7 +25,7 @@ def dos_list(df, estrusori):
     return(df_solver)
 
 
-def best_choice(t_now, stato):
+def best_choice(t_now, stato, P1, P2, P3):
     global coeff_con, coeff_time, coeff_mir
     #  Creates a list of container
     mask_disp = stato.df_coni['stato'] == 'D'
@@ -68,10 +68,10 @@ def best_choice(t_now, stato):
         tcr[e] = est_que_time
 
     #  Dictionary of mp with time to pick
-    mp_time = pd.Series.to_dict(stato.df_giacenza['time_pick'])
+    mp_time = pd.Series.to_dict(stato.df_stock_mp['time_pick'])
 
     #  Dictionary of mp quantity in stock
-    mp_qta = pd.Series.to_dict(stato.df_giacenza['qta'])
+    mp_qta = pd.Series.to_dict(stato.df_stock_mp['qta'])
 
     #  Dictionary of mix for each dosaggio
     mix = {}
@@ -110,7 +110,7 @@ def best_choice(t_now, stato):
                      * variables[d][c] for (d, c) in arcs]
     time_pick_obj = np.multiply(time_obj, coeff_mir)
 
-    objective = time_obj + color_obj + time_pick_obj
+    objective = P1 * time_obj + P2 * color_obj + P3 * time_pick_obj
     #  --------------------
 
     # The objective function is added to 'prob' first

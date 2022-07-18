@@ -1,6 +1,6 @@
 import module_class_cono
 import module_stats
-import module_que_by_est
+import Solver_sequencing 
 
 import pandas as pd
 import salabim as sim
@@ -50,6 +50,9 @@ d_pulizia = sim.Normal(180, 20)
 db_pulizia = sim.Bounded(d_extrusion, lowerbound=60, upperbound=240)
 #  --------------------
 
+P1 = 0.33
+P2 = 0.33
+P3 = 0.33
 
 class DosaggioGenerator(sim.Component):
     def process(self):
@@ -60,7 +63,7 @@ class DosaggioGenerator(sim.Component):
                     s = stazione1
                 else:
                     s = stazione2
-                Dosaggio(staz_call=s)
+                Dosaggio(staz_call=s, P1=P1, P2=P2, P3=P3)
                 yield self.hold(db_interarrival.sample() * 0.8)
             else:
                 yield self.hold(1)
@@ -103,54 +106,29 @@ class Dosaggio(sim.Component):
         stato.dict_elements['time'].append(env.now()/60)
         stato.dict_elements['elements'].append(stato.elements)
         return()
-
-    def setup(self, staz_call):
-        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail
+    
+    def setup(self, staz_call, P1, P2, P3):
+        global stato, error, df_coda_fail, df_coda_LC_fail, best_dosaggio_fail, total_skip
         t = env.now()
 
         self.staz_call = staz_call
 
-        df_coda = module_que_by_est.func_calc_que(
-            stato.estrusori,
-            stato.dict_TER, t,
-            stato.df_OP)
-
-        cono_found = False
-        idx_que = 0
-
-        while not cono_found:
-            best_dosaggio = df_coda.iloc[idx_que, :]
-
-            self.parameters(best_dosaggio)
-            print('Setting up ', env.now(), self.estrusore)
-
-            for cono in obj_coni:
-                if cono.estrusore == self.estrusore and cono.stato == 'D':
-                    cono_found = True
-                    self.cono = cono
-                    cono.stato = 'A'
-                    cono.estrusore = self.estrusore
-                    cono.color = self.color
-                    cono.valcrom = self.valcrom
-                    break
-
-            if not cono_found:
-                for cono in obj_coni:
-                    if (cono.valcrom <= self.valcrom
-                        and cono.color <= self.color
-                            and cono.stato == 'D'):
-                        cono_found = True
-                        self.cono = cono
-                        cono.stato = 'A'
-                        cono.estrusore = self.estrusore
-                        cono.color = self.color
-                        cono.valcrom = self.valcrom
-                        break
-
-            if not cono_found:
-                idx_que += 1
-                print('Cono non trovato, skip to', idx_que)
-
+        #  Solver
+        tupla_solver = Solver_sequencing.best_choice(t, stato, P1, P2, P3)
+        
+        best_dosaggio = stato.df_OP.iloc[tupla_solver[0], :]
+        for cono in obj_coni:
+            if cono.rfid == tupla_solver[0]:
+                self.cono = cono
+                cono.stato = 'A'
+                cono.estrusore = self.estrusore
+                cono.color = self.color
+                cono.valcrom = self.valcrom
+                break
+        self.parameters(best_dosaggio)
+        print('Setting up ', env.now(), self.estrusore)
+        #  -------------------------------------
+        
     def process(self):
         global stato
         self.richiesta_cono = env.now()
@@ -337,7 +315,6 @@ class Pulizia(sim.Component):
                         self, stato.dict_timestamp_pulizie)
                 break
         self.passivate()
-
 
 # MAIN
 # --------------------------------------------------

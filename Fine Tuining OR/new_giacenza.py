@@ -2,7 +2,7 @@ import pandas as pd
 
 import glob
 import os
-from random import shuffle, randrange
+from random import shuffle, randrange, randint
 
 #  importazione statini
 path_folder_statini = "C:/Users/HP/Desktop/statini/*"
@@ -72,6 +72,7 @@ df_mp['sezione'] = None
 df_mp['qta'] = 500
 df_mp['zona'] = 'M'
 df_mp['stato'] = None
+df_mp['time_pick'] = [ x for x in range(len(df_mp)) ]
 
 i = 0
 for mp in df_mp.index:

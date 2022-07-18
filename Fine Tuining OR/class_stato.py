@@ -14,13 +14,13 @@ df_coni = pd.read_csv(r"C:\Users\HP\Desktop\mag_coni.csv",
 # Creo i dizionari per l'oggetto stato
 
 # questo dizionario contiene e i parametri di funzionamento della simulazione
-parameters = {'t_tool': 10,  # tempo robot cambio tool in secondi
+parameters = {'t_tool': 15,  # tempo robot cambio tool in secondi
               't_mass_v': 17,
               't_mass_f': 25,
               't_pig_v': 17,
               't_pig_f': 25,  # tempi robot per una palettata in secondi
-              'kg_mass': 3,  # capacità paletta massivi
-              'kg_pig': 1, #  capacità paletta pigmento
+              'kg_mass': 10,  # capacità paletta massivi
+              'kg_pig': 3, #  capacità paletta pigmento
               'max_cicli': 15,  # massimi cicli di utilizzo di un cono
               }
 
